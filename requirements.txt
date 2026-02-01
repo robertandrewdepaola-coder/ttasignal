@@ -1,5 +1,5 @@
-# TTA Engine v16.37 - Requirements for Streamlit Community Cloud
-# Python 3.10+ required
+# TTA Engine v16.16 - Requirements for Streamlit Community Cloud
+# Python 3.10+ required (tested on Python 3.13)
 
 streamlit>=1.28.0
 yfinance>=0.2.31
@@ -10,3 +10,4 @@ scipy>=1.11.0
 openai>=1.0.0
 reportlab>=4.0.0
 kaleido==0.2.1
+pandas-ta>=0.3.14b0
