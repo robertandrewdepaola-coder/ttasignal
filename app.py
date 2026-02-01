@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
+
 import streamlit as st
 import streamlit.components.v1 as components
 import yfinance as yf
@@ -75,7 +79,7 @@ def display_daily_summary():
             'Target': f"${v['target']}"
         })
     
-    st.dataframe(summary_data, use_container_width=True)
+    st.dataframe(summary_data, width='stretch')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3986,7 +3990,7 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Data error: {e}")
     
-    analyze_btn = st.button("Analyze", type="primary", use_container_width=True)
+    analyze_btn = st.button("Analyze", type="primary", width='stretch')
     
     # v13.0 Export Buttons - ALWAYS visible in sidebar
     st.divider()
@@ -4008,13 +4012,13 @@ with st.sidebar:
                     data=chart_bytes,
                     file_name=f"{st.session_state.get('current_ticker', 'chart')}_chart.png",
                     mime="image/png",
-                    use_container_width=True,
+                    width='stretch',
                     key=f"sidebar_chart_{st.session_state.get('current_ticker', 'none')}"
                 )
             except:
-                st.button("Chart", disabled=True, use_container_width=True)
+                st.button("Chart", disabled=True, width='stretch')
         else:
-            st.button("Chart", disabled=True, use_container_width=True)
+            st.button("Chart", disabled=True, width='stretch')
     with exp_col2:
         if sidebar_all_signals:
             # v16.12: Pass filter profile to export
@@ -4031,11 +4035,11 @@ with st.sidebar:
                 data=csv_data,
                 file_name=f"{st.session_state.get('current_ticker', 'trades')}_trades.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width='stretch',
                 key=f"sidebar_trades_{st.session_state.get('current_ticker', 'none')}"
             )
         else:
-            st.button("Trades", disabled=True, use_container_width=True)
+            st.button("Trades", disabled=True, width='stretch')
     
     # Row 2: Code Base and Indicator Logic (always available)
     exp_col3, exp_col4 = st.columns(2)
@@ -4056,11 +4060,11 @@ with st.sidebar:
                 data=code_header + codebase_content,
                 file_name=f"TTA_{BUILD_VERSION}_{BUILD_DATE}_full.py",
                 mime="text/x-python",
-                use_container_width=True,
+                width='stretch',
                 key="sidebar_code_export"
             )
         except:
-            st.button("Code", disabled=True, use_container_width=True)
+            st.button("Code", disabled=True, width='stretch')
     with exp_col4:
         # Extract just the TTA indicator logic
         try:
@@ -4095,13 +4099,13 @@ with st.sidebar:
                     data=indicator_code,
                     file_name=f"TTA_{BUILD_VERSION}_{BUILD_DATE}_indicator.py",
                     mime="text/x-python",
-                    use_container_width=True,
+                    width='stretch',
                     key="sidebar_indicator_export"
                 )
             else:
-                st.button("Indicator", disabled=True, use_container_width=True)
+                st.button("Indicator", disabled=True, width='stretch')
         except:
-            st.button("Indicator", disabled=True, use_container_width=True)
+            st.button("Indicator", disabled=True, width='stretch')
     
     # Row 3: Changelog download
     try:
@@ -4112,11 +4116,11 @@ with st.sidebar:
             data=changelog_content,
             file_name=f"TTA_CHANGELOG_{BUILD_VERSION}.md",
             mime="text/markdown",
-            use_container_width=True,
+            width='stretch',
             key="sidebar_changelog_export"
         )
     except:
-        st.button("Version History", disabled=True, use_container_width=True)
+        st.button("Version History", disabled=True, width='stretch')
     
     # Row 4: Download Analysis Logs
     if st.session_state.log_capture.has_logs():
@@ -4127,11 +4131,11 @@ with st.sidebar:
             data=log_content,
             file_name=f"TTA_{ticker_name}_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
             mime="text/plain",
-            use_container_width=True,
+            width='stretch',
             key="sidebar_logs_export"
         )
     else:
-        st.button("Download Logs", disabled=True, use_container_width=True, help="Run an analysis first")
+        st.button("Download Logs", disabled=True, width='stretch', help="Run an analysis first")
     
     # Row 5: Download Source Code
     try:
@@ -4142,11 +4146,11 @@ with st.sidebar:
             data=source_code,
             file_name=f"TTA_app_{BUILD_VERSION}_{BUILD_DATE}.py",
             mime="text/x-python",
-            use_container_width=True,
+            width='stretch',
             key="sidebar_source_export"
         )
     except:
-        st.button("Source Code", disabled=True, use_container_width=True)
+        st.button("Source Code", disabled=True, width='stretch')
     
     # ═══════════════════════════════════════════════════════════════
     # v13.3 BATCH AUDIT - Multi-ticker analysis with leaderboard
@@ -4200,7 +4204,7 @@ with st.sidebar:
         watchlist = [t.strip().upper() for t in watchlist_input.replace('\n', ',').split(',') if t.strip()]
     
     # v16.11: VIX Recommendation Button
-    vix_check_btn = st.button("Check VIX & Get Recommendation", use_container_width=True)
+    vix_check_btn = st.button("Check VIX & Get Recommendation", width='stretch')
     if vix_check_btn:
         with st.spinner("Fetching VIX..."):
             vix_data = get_vix_recommendation()
@@ -4327,9 +4331,9 @@ with st.sidebar:
     # Batch audit buttons
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
-        batch_run_btn = st.button("Run Audit", use_container_width=True, type="primary")
+        batch_run_btn = st.button("Run Audit", width='stretch', type="primary")
     with btn_col2:
-        batch_all_btn = st.button("All Filters", use_container_width=True, help="Run with ALL filter profiles")
+        batch_all_btn = st.button("All Filters", width='stretch', help="Run with ALL filter profiles")
     
     # Initialize batch results in session state
     if 'batch_results' not in st.session_state:
@@ -4525,7 +4529,7 @@ with st.sidebar:
             data=master_csv,
             file_name=f"Master_Efficiency_Audit_{batch_profile_name}_{BUILD_VERSION}_{BUILD_DATE}.csv",
             mime="text/csv",
-            use_container_width=True,
+            width='stretch',
             key="batch_master_csv"
         )
         
@@ -4536,7 +4540,7 @@ with st.sidebar:
                 data=st.session_state.all_filters_report,
                 file_name=f"All_Filters_Comparison_{BUILD_VERSION}_{BUILD_DATE}.txt",
                 mime="text/plain",
-                use_container_width=True,
+                width='stretch',
                 key="batch_all_filters_report"
             )
         
@@ -4580,7 +4584,7 @@ with st.sidebar:
                 data=trades_csv,
                 file_name=f"All_Trades_{batch_profile_name}_{BUILD_VERSION}_{BUILD_DATE}.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width='stretch',
                 key="batch_all_trades_csv"
             )
         
@@ -4736,7 +4740,7 @@ with st.sidebar:
             data=leaderboard_report,
             file_name=f"Leaderboard_Report_{batch_profile_name}_{BUILD_VERSION}_{BUILD_DATE}.txt",
             mime="text/plain",
-            use_container_width=True,
+            width='stretch',
             key="batch_leaderboard_report"
         )
         
@@ -4912,7 +4916,7 @@ with st.sidebar:
             data=consolidated_report,
             file_name=f"Consolidated_Audit_{batch_profile_name}_{BUILD_VERSION}_{BUILD_DATE}.txt",
             mime="text/plain",
-            use_container_width=True,
+            width='stretch',
             key="batch_consolidated_report"
         )
     
@@ -5077,7 +5081,7 @@ with st.sidebar:
                     data=trade_csv,
                     file_name=f"{current_ticker}_trade_report.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width='stretch',
                     key=f"sidebar_trade_report_{current_ticker}"
                 )
         
@@ -8999,7 +9003,7 @@ if st.session_state.df is not None and st.session_state.fig is not None:
     # v16.10: Full-width chart with no margins
     st.plotly_chart(
         fig,
-        use_container_width=True,
+        width='stretch',
         config={
             'displayModeBar': False,  # Hide toolbar for clean look
             'scrollZoom': False
@@ -9029,11 +9033,11 @@ if st.session_state.df is not None and st.session_state.fig is not None:
                 data=chart_bytes,
                 file_name=f"{ticker_display}_chart.png",
                 mime="image/png",
-                use_container_width=True,
+                width='stretch',
                 key=f"main_chart_{ticker_display}"
             )
         except:
-            st.button("📷 Chart", disabled=True, use_container_width=True)
+            st.button("📷 Chart", disabled=True, width='stretch')
     with exp_col2:
         tta_stats = st.session_state.get('tta_stats', {})
         all_signals = tta_stats.get("all_signals", [])
@@ -9046,11 +9050,11 @@ if st.session_state.df is not None and st.session_state.fig is not None:
                 data=csv_data,
                 file_name=f"{ticker_display}_trades.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width='stretch',
                 key=f"main_trades_{ticker_display}"
             )
         else:
-            st.button("📊 Trades", disabled=True, use_container_width=True)
+            st.button("📊 Trades", disabled=True, width='stretch')
     with exp_col3:
         st.markdown(f"""
 <div style="text-align: right; padding-top: 4px;">
@@ -9792,3 +9796,4 @@ with col1:
                     file_name=report_file,
                     mime="text/plain"
                 )
+"Fix: Add sys.path for utils module and update deprecated UI params"
