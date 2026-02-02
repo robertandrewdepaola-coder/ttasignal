@@ -1094,12 +1094,15 @@ def render_react_dashboard(analysis_data_dict: dict) -> str:
     return html_template
 
 
-def parse_analysis_for_dashboard(ai_analysis: str, ticker: str, current_price: float, level_A: float, level_B: float, timeframe: str = "Daily") -> dict:
-    """
-    Parse AI analysis text and extract structured data for TradingView Pro dashboard.
-    Returns a dictionary matching the new v7.1 data contract.
-    
-    CANONICAL DEGREE MAP (Weekly is NEVER execution authority):
+def parse_analysis_for_dashboard(
+    ai_analysis: str,
+    ticker: str,
+    current_price: float,
+    level_a: float,
+    level_b: float,
+    execution_mode: str = "DAILY_MINOR",
+    mtf_data: dict = None  # v16.17 MTF FIX - Traffic light data from app.py
+):
       - Weekly → Intermediate (Regime context + A2 ONLY)
       - Daily → Minor (Execution if Daily selected)
       - 4H → Minuette (Execution if 4H selected)
