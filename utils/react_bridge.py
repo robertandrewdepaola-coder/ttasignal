@@ -10,6 +10,31 @@ import re
 import math
 
 
+def check_mtf_verdict_alignment(monthly_status, weekly_status, daily_status, fourhour_status, mtf_mode="MODERATE"):
+    """Validate MTF alignment before issuing entry verdict."""
+    if mtf_mode == "MODERATE":
+        all_ok = all(status in ["STRONG", "WEAK"] for status in [monthly_status, weekly_status, daily_status, fourhour_status])
+        if all_ok:
+            return True, "M/W/D/4H aligned"
+        else:
+            avoid_tfs = []
+            if monthly_status == "AVOID": avoid_tfs.append("M")
+            if weekly_status == "AVOID": avoid_tfs.append("W")
+            if daily_status == "AVOID": avoid_tfs.append("D")
+            if fourhour_status == "AVOID": avoid_tfs.append("4H")
+            return False, f"Timeframes in AVOID: {', '.join(avoid_tfs)}"
+    return False, "Invalid MTF mode"
+
+
+def get_ao_macd_status(ao_value, macd_value=None, ao_prev=None):
+    """Determine traffic light status. Returns: STRONG, WEAK, or AVOID"""
+    if ao_value is None or ao_value < 0:
+        return "AVOID"
+    if ao_prev is not None and ao_value < ao_prev:
+        return "WEAK"
+    return "STRONG"
+
+
 def enforce_v71_narrative_hygiene(text: str, structure_state: str, weinstein_stage: str) -> str:
     """
     v7.1 NARRATIVE HYGIENE GOVERNOR (MANDATORY)
@@ -1265,8 +1290,18 @@ def parse_analysis_for_dashboard(ai_analysis: str, ticker: str, current_price: f
     if not final_verdict or len(final_verdict) < 20:
         if trigger_state == "BEARISH":
             final_verdict = f"Bearish activation is live. Price closed below A (${level_A:.2f}). Treat as corrective extension risk at {execution_authority_label} degree. Do NOT label impulse while below B."
-        elif trigger_state == "BULLISH":
-            final_verdict = f"Bullish continuation permitted. Price closed above B (${level_B:.2f}). Correction may be complete at {execution_authority_label} degree."
+                elif trigger_state == "BULLISH":
+            # v16.17 MTF FIX
+            m_st = "WEAK" if ("Monthly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
+            w_st = "WEAK" if ("Weekly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
+            d_st = "WEAK" if ("Daily" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
+            h4_st = "WEAK" if ("4H" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
+            mtf_ok, mtf_msg = check_mtf_verdict_alignment(m_st, w_st, d_st, h4_st)
+            if mtf_ok:
+                final_verdict = f"Enter long - All timeframes aligned. Price closed above B (${level_B:.2f}). Correction may be complete at {execution_authority_label} degree."
+            else:
+                final_verdict = f"STAY OUT - Price above B (${level_B:.2f}) but MTF misaligned ({mtf_msg}). Wait for alignment."
+
         else:
             final_verdict = f"No trigger resolved. Price between A (${level_A:.2f}) and B (${level_B:.2f}). Stand aside until trigger resolution at {execution_authority_label} degree."
     
