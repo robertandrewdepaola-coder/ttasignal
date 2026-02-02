@@ -1291,32 +1291,33 @@ def parse_analysis_for_dashboard(ai_analysis: str, ticker: str, current_price: f
         if trigger_state == "BEARISH":
             final_verdict = f"Bearish activation is live. Price closed below A (${level_A:.2f}). Treat as corrective extension risk at {execution_authority_label} degree. Do NOT label impulse while below B."
         elif trigger_state == "BULLISH":
-            # v16.17 MTF FIX - Use actual traffic light data
+            # v16.17 MTF FIX - Use actual traffic light data from app.py
             if mtf_data:
-                # Convert dot colors to status
-                def color_to_status(c):
-                    if not c: return "STRONG"
-                    c = c.lower()
-                    if '00e676' in c: return "STRONG"
-                    if 'fbbf24' in c or 'f59e0b' in c: return "WEAK"
-                    return "AVOID"
+                # Convert dot colors to status (green=STRONG, yellow=WEAK, red=AVOID)
+                def color_to_status(color):
+                    if not color or color == '6b7280':
+                        return "STRONG"  # Gray/no data = default allow
+                    c = str(color).lower()
+                    if '00e676' in c or c == 'green':
+                        return "STRONG"  # Green
+                    elif 'fbbf24' in c or 'f59e0b' in c or c == 'yellow':
+                        return "WEAK"    # Yellow
+                    else:
+                        return "AVOID"   # Red or other
 
                 m_st = color_to_status(mtf_data.get('monthly', {}).get('dotcolor'))
                 w_st = color_to_status(mtf_data.get('weekly', {}).get('dotcolor'))
                 d_st = color_to_status(mtf_data.get('daily', {}).get('dotcolor'))
                 h4_st = color_to_status(mtf_data.get('h4', {}).get('dotcolor'))
-            else:
-                # Fallback to text search
-                m_st = "WEAK" if ("Monthly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
-                w_st = "WEAK" if ("Weekly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
-                d_st = "WEAK" if ("Daily" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
-                h4_st = "WEAK" if ("4H" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
 
-            mtf_ok, mtf_msg = check_mtf_verdict_alignment(m_st, w_st, d_st, h4_st)
-            if mtf_ok:
-                final_verdict = f"Enter long - All timeframes aligned. Price closed above B (${level_B:.2f}). Correction may be complete at {execution_authority_label} degree."
+                mtf_ok, mtf_msg = check_mtf_verdict_alignment(m_st, w_st, d_st, h4_st)
+                if mtf_ok:
+                    final_verdict = f"Enter long - All timeframes aligned. Price closed above B (${level_B:.2f}). Correction may be complete at {execution_authority_label} degree."
+                else:
+                    final_verdict = f"STAY OUT - Price above B (${level_B:.2f}) but MTF misaligned ({mtf_msg}). Wait for alignment."
             else:
-                final_verdict = f"STAY OUT - Price above B (${level_B:.2f}) but MTF misaligned ({mtf_msg}). Wait for alignment."
+                # Fallback if mtf_data not provided
+                final_verdict = f"Bullish continuation permitted. Price closed above B (${level_B:.2f}). Correction may be complete at {execution_authority_label} degree."
 
         else:
             final_verdict = f"No trigger resolved. Price between A (${level_A:.2f}) and B (${level_B:.2f}). Stand aside until trigger resolution at {execution_authority_label} degree."
