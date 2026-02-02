@@ -9476,24 +9476,12 @@ if st.session_state.df is not None and st.session_state.fig is not None:
                 if st.session_state.show_dashboard and level_A is not None and level_B is not None:
                     try:
                         
-                        # v16.17 MTF FIX - Calculate traffic lights from session state
+                        # v16.17 MTF FIX - Collect traffic light data
                         mtf_data = {
-                            'monthly': {
-                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('monthly_ao', 0),
-                                'dotcolor': st.session_state.get('traffic_lights', {}).get('monthly_dotcolor', '6b7280')
-                            },
-                            'weekly': {
-                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('weekly_ao', 0),
-                                'dotcolor': st.session_state.get('traffic_lights', {}).get('weekly_dotcolor', '6b7280')
-                            },
-                            'daily': {
-                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('daily_ao', 0),
-                                'dotcolor': st.session_state.get('traffic_lights', {}).get('daily_dotcolor', '6b7280')
-                            },
-                            'h4': {
-                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('h4_ao', 0),
-                                'dotcolor': st.session_state.get('traffic_lights', {}).get('h4_dotcolor', '6b7280')
-                            }
+                            'monthly': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('monthly_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('monthly_dotcolor', '6b7280')},
+                            'weekly': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('weekly_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('weekly_dotcolor', '6b7280')},
+                            'daily': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('daily_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('daily_dotcolor', '6b7280')},
+                            'h4': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('h4_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('h4_dotcolor', '6b7280')}
                         }
 
                         dashboard_data = parse_analysis_for_dashboard(
@@ -9502,9 +9490,9 @@ if st.session_state.df is not None and st.session_state.fig is not None:
                             current_price, 
                             level_A, 
                             level_B,
-                            timeframe,  # Pass timeframe to correctly derive execution authority
-                            mtf_data    # v16.17 MTF FIX - Pass traffic light data
-                        )
+                            timeframe  # Pass timeframe to correctly derive execution authority
+                        ,
+                                                    mtf_data  # v16.17 MTF data)
                         
                         # --- MACD CHUNK DIAGNOSTIC LOGIC (v7.1 COMPLIANT, BI-DIRECTIONAL) ---
                         # Use stored MACD diagnostic from chart creation (avoid recomputing)
