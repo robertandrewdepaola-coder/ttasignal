@@ -1290,7 +1290,7 @@ def parse_analysis_for_dashboard(ai_analysis: str, ticker: str, current_price: f
     if not final_verdict or len(final_verdict) < 20:
         if trigger_state == "BEARISH":
             final_verdict = f"Bearish activation is live. Price closed below A (${level_A:.2f}). Treat as corrective extension risk at {execution_authority_label} degree. Do NOT label impulse while below B."
-                elif trigger_state == "BULLISH":
+    elif trigger_state == "BULLISH":
             # v16.17 MTF FIX
             m_st = "WEAK" if ("Monthly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
             w_st = "WEAK" if ("Weekly" in ai_analysis and "WEAK" in ai_analysis) else "STRONG"
