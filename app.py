@@ -9475,13 +9475,35 @@ if st.session_state.df is not None and st.session_state.fig is not None:
             with st.expander("📊 Elliott Wave Analysis (AI Audit)", expanded=True):
                 if st.session_state.show_dashboard and level_A is not None and level_B is not None:
                     try:
+                        
+                        # v16.17 MTF FIX - Calculate traffic lights from session state
+                        mtf_data = {
+                            'monthly': {
+                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('monthly_ao', 0),
+                                'dotcolor': st.session_state.get('traffic_lights', {}).get('monthly_dotcolor', '6b7280')
+                            },
+                            'weekly': {
+                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('weekly_ao', 0),
+                                'dotcolor': st.session_state.get('traffic_lights', {}).get('weekly_dotcolor', '6b7280')
+                            },
+                            'daily': {
+                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('daily_ao', 0),
+                                'dotcolor': st.session_state.get('traffic_lights', {}).get('daily_dotcolor', '6b7280')
+                            },
+                            'h4': {
+                                'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('h4_ao', 0),
+                                'dotcolor': st.session_state.get('traffic_lights', {}).get('h4_dotcolor', '6b7280')
+                            }
+                        }
+
                         dashboard_data = parse_analysis_for_dashboard(
                             ai_analysis, 
                             ticker_display, 
                             current_price, 
                             level_A, 
                             level_B,
-                            timeframe  # Pass timeframe to correctly derive execution authority
+                            timeframe,  # Pass timeframe to correctly derive execution authority
+                            mtf_data    # v16.17 MTF FIX - Pass traffic light data
                         )
                         
                         # --- MACD CHUNK DIAGNOSTIC LOGIC (v7.1 COMPLIANT, BI-DIRECTIONAL) ---
