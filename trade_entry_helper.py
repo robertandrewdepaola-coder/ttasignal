@@ -123,7 +123,10 @@ def validate_entry_conditions(ticker):
         ao_recent = ao.iloc[-20:]
         ao_recent_cross = any((ao_recent.shift(1) <= 0) & (ao_recent > 0))
         checks['ao_recent_cross'] = ao_recent_cross
-        
+        # 3. AO crossed from ≤0 to >0 in last 20 days
+        ao_recent = ao.iloc[-20:]
+        print(f"\n{ticker} - Last 5 AO values: {[float(ao.iloc[i]) for i in range(-5, 0)]}")
+        ao_recent_cross = any((ao_recent.shift(1) <= 0) & (ao_recent > 0))
         # 4. SPY above 200 SMA
         spy = yf.Ticker("SPY")
         spy_hist = spy.history(period='1y', interval='1d')
