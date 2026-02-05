@@ -17,6 +17,7 @@ import re
 import io
 from openai import OpenAI
 from utils.react_bridge import render_react_dashboard, parse_analysis_for_dashboard, enforce_v71_narrative_hygiene, enforce_verdict_consistency, validate_fib_numeric_sanity
+from trading_journal_ui import render_trading_journal_tab, add_journal_to_sidebar
 from strategy_break_retest import get_current_pattern_state, classify_weinstein_stage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -3897,6 +3898,15 @@ with st.sidebar:
     
     # v16.12: Always show timeframes for MTF modes
     st.caption("📊 **MTF Timeframes: M / W / D** (Monthly, Weekly, Daily)")
+    # Trading Journal Mode Selector
+    st.markdown("---")
+    st.markdown("##### App Mode")
+    app_mode = st.radio(
+        "Select Mode",
+        options=["📊 Analysis", "💼 Trading Journal"],
+        index=0,
+        label_visibility="collapsed",
+        key="app_mode"
     
     if ultimate_individual:
         st.caption("ULTIMATE: 5-Gate MACD Entry + Triple Confirmation Exit")
@@ -4146,6 +4156,10 @@ with st.sidebar:
             data=source_code,
             file_name=f"TTA_app_{BUILD_VERSION}_{BUILD_DATE}.py",
             mime="text/x-python",
+            # Trading Journal Mode Display
+if st.session_state.get('app_mode') == "💼 Trading Journal":
+    render_trading_journal_tab()
+    st.stop()
             width='stretch',
             key="sidebar_source_export"
         )
