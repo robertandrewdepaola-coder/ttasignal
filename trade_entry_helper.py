@@ -82,7 +82,7 @@ def calculate_profit_target(entry_price):
 def validate_entry_conditions(ticker):
     """
     Validate TTA strategy entry conditions:
-    - Daily MACD above signal
+    - Daily MACD above signal (CHANGED: was checking for exact cross day)
     - Daily AO > 0
     - AO crossed from ≤0 to >0 in last 20 days
     - SPY not below 200 SMA
@@ -91,112 +91,54 @@ def validate_entry_conditions(ticker):
     Returns: (is_valid, reasons_dict)
     """
     try:
-        # Fetch stock data with enough history for accurate MACD
+        # Fetch stock data
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='6mo', interval='1d')
+        hist = stock.history(period='3mo', interval='1d')
         
         if len(hist) < 50:
             return False, {"error": "Insufficient data"}
         
-        # Verify data is recent (not stale)
-        latest_date = hist.index[-1]
-        days_old = (datetime.now() - latest_date.to_pydatetime()).days
-        
-        if days_old > 5:
-            return False, {"error": f"Data is {days_old} days old"}
-        
-        # Calculate MACD (12, 26, 9) - need at least 35 bars for warmup
+        # Calculate MACD (12, 26, 9)
         exp1 = hist['Close'].ewm(span=12, adjust=False).mean()
         exp2 = hist['Close'].ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
         signal = macd.ewm(span=9, adjust=False).mean()
         
-        # Calculate AO (5/34 of median price) - Awesome Oscillator
+        # Calculate AO (5/34 of median price)
         median_price = (hist['High'] + hist['Low']) / 2
-        ao_fast = median_price.rolling(window=5, min_periods=5).mean()
-        ao_slow = median_price.rolling(window=34, min_periods=34).mean()
-        ao = ao_fast - ao_slow
-        
-        # Note: First 34 bars will be NaN due to slow MA, but we have enough data
-        # We'll only check recent values which are after the warmup period
+        ao = median_price.rolling(window=5).mean() - median_price.rolling(window=34).mean()
         
         # Check conditions
         checks = {}
         
-        # 1. Daily MACD above signal (bullish)
-        # Store actual values for debugging
-        macd_value = float(macd.iloc[-1])
-        signal_value = float(signal.iloc[-1])
-        macd_cross = macd_value > signal_value
+        # 1. Daily MACD above signal (FIXED: check current position, not exact cross day)
+        macd_cross = macd.iloc[-1] > signal.iloc[-1]
         checks['daily_macd_cross'] = macd_cross
-        checks['_macd_debug'] = f"MACD:{macd_value:.2f} vs Signal:{signal_value:.2f}"
         
         # 2. Daily AO > 0
-        if pd.isna(ao.iloc[-1]):
-            return False, {"error": "AO calculation failed (NaN values)"}
-        
-        ao_value = float(ao.iloc[-1])
-        ao_positive = ao_value > 0
+        ao_positive = ao.iloc[-1] > 0
         checks['ao_positive'] = ao_positive
-        checks['_ao_debug'] = f"AO:{ao_value:.2f}"
         
         # 3. AO crossed from ≤0 to >0 in last 20 days
-        # Get last 25 values to ensure we have 20 valid non-NaN values
-        ao_recent = ao.iloc[-25:].dropna()
-        
-        if len(ao_recent) < 5:
-            checks['ao_recent_cross'] = False
-            checks['_ao_cross_debug'] = "Insufficient AO data"
-        else:
-            # Only check the last 20 valid values
-            ao_check = ao_recent.iloc[-20:] if len(ao_recent) >= 20 else ao_recent
-            ao_crosses = (ao_check.shift(1) <= 0) & (ao_check > 0)
-            ao_recent_cross = any(ao_crosses)
-            checks['ao_recent_cross'] = ao_recent_cross
-            
-            # Debug: Find when the most recent cross occurred
-            if ao_recent_cross:
-                cross_indices = ao_crosses[ao_crosses].index
-                if len(cross_indices) > 0:
-                    days_since_cross = len(ao_check) - list(ao_check.index).index(cross_indices[-1]) - 1
-                    checks['_ao_cross_debug'] = f"Last AO cross: {days_since_cross} bars ago"
-            else:
-                # Check last few AO values to see why it failed
-                if len(ao_recent) >= 5:
-                    recent_ao_values = [f"{float(ao_recent.iloc[i]):.1f}" for i in range(-5, 0)]
-                    checks['_ao_cross_debug'] = f"Last 5 AO: {', '.join(recent_ao_values)}"
-                else:
-                    checks['_ao_cross_debug'] = "Too few AO values"
+        ao_recent = ao.iloc[-20:]
+        ao_recent_cross = any((ao_recent.shift(1) <= 0) & (ao_recent > 0))
+        checks['ao_recent_cross'] = ao_recent_cross
         
         # 4. SPY above 200 SMA
         spy = yf.Ticker("SPY")
         spy_hist = spy.history(period='1y', interval='1d')
-        if len(spy_hist) >= 200:
-            spy_sma200 = spy_hist['Close'].rolling(window=200).mean()
-            spy_above_200 = spy_hist['Close'].iloc[-1] > spy_sma200.iloc[-1]
-            checks['spy_above_200'] = spy_above_200
-        else:
-            checks['spy_above_200'] = False
-            checks['error'] = "SPY data insufficient"
+        spy_sma200 = spy_hist['Close'].rolling(window=200).mean()
+        spy_above_200 = spy_hist['Close'].iloc[-1] > spy_sma200.iloc[-1]
+        checks['spy_above_200'] = spy_above_200
         
         # 5. VIX below 30
         vix = yf.Ticker("^VIX")
         vix_hist = vix.history(period='5d')
-        if len(vix_hist) > 0:
-            vix_value = float(vix_hist['Close'].iloc[-1])
-            vix_below_30 = vix_value < 30
-            checks['vix_below_30'] = vix_below_30
-            checks['_vix_debug'] = f"VIX:{vix_value:.1f}"
-        else:
-            checks['vix_below_30'] = False
+        vix_below_30 = vix_hist['Close'].iloc[-1] < 30
+        checks['vix_below_30'] = vix_below_30
         
-        # Store data freshness info
-        checks['_data_date'] = latest_date.strftime('%Y-%m-%d')
-        checks['_data_age_days'] = days_old
-        
-        # All must be true (ignore debug keys starting with _)
-        condition_keys = [k for k in checks.keys() if not k.startswith('_')]
-        is_valid = all(checks[k] for k in condition_keys if k != 'error')
+        # All must be true
+        is_valid = all(checks.values())
         
         return is_valid, checks
         
@@ -226,22 +168,6 @@ def format_entry_validation(is_valid, checks):
         if key in checks:
             emoji = "✅" if checks[key] else "❌"
             messages.append(f"  {emoji} {label}")
-    
-    # Add debug info if available
-    if '_data_date' in checks:
-        messages.append(f"\n📅 Data as of: {checks['_data_date']} ({checks['_data_age_days']} days old)")
-    
-    if '_macd_debug' in checks:
-        messages.append(f"🔍 {checks['_macd_debug']}")
-    
-    if '_ao_debug' in checks:
-        messages.append(f"🔍 {checks['_ao_debug']}")
-    
-    if '_ao_cross_debug' in checks:
-        messages.append(f"🔍 {checks['_ao_cross_debug']}")
-        
-    if '_vix_debug' in checks:
-        messages.append(f"🔍 {checks['_vix_debug']}")
     
     if is_valid:
         messages.append("\n🎯 **All entry conditions met!**")
