@@ -1,6 +1,12 @@
 """
-TTA Engine - Trading Journal UI for Streamlit (Bulletproof Version)
+TTA Engine - Trading Journal UI for Streamlit (Enhanced Version)
 Provides user interface components for the trading journal.
+
+ENHANCEMENTS:
+- Quality scoring with mini-backtest in watchlist scanner
+- Fixed signal detection matching backtester logic
+- Weekly confirmation status display
+- Comprehensive ticker analysis
 """
 
 import streamlit as st
@@ -10,12 +16,16 @@ from datetime import datetime
 import traceback
 from trade_entry_helper import (
     fetch_current_price,
-    calculate_atr,
+    calculate_atr_value,
     calculate_strategy_stops,
     calculate_profit_target,
     validate_entry_conditions,
     format_entry_validation,
-    get_exit_strategy_note
+    format_quality_score,
+    get_exit_strategy_note,
+    check_weekly_confirmation,
+    calculate_quality_score,
+    analyze_ticker_full
 )
 
 
@@ -37,7 +47,7 @@ def render_trading_journal_tab():
     Render the Trading Journal tab in Streamlit.
     
     This creates a complete trading dashboard with:
-    - Watchlist management
+    - Watchlist management with QUALITY SCORING
     - Trade entry form
     - Daily monitoring dashboard
     - Trade closing interface
@@ -54,181 +64,93 @@ def render_trading_journal_tab():
         # Custom CSS for better dark theme visibility
         st.markdown("""
         <style>
-        /* Fix all text to be light on dark */
-        .stApp {
-            background-color: #0E1117;
-        }
-        
-        /* Text inputs - dark background, light text */
-        .stTextInput > div > div > input {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-            border: 1px solid #4A4A4A !important;
-        }
-        
-        .stTextArea > div > div > textarea {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-            border: 1px solid #4A4A4A !important;
-        }
-        
+        .stApp { background-color: #0E1117; }
+        .stTextInput > div > div > input,
+        .stTextArea > div > div > textarea,
         .stNumberInput > div > div > input {
             color: #FAFAFA !important;
             background-color: #262730 !important;
             border: 1px solid #4A4A4A !important;
         }
-        
-        /* Selectbox - the closed dropdown box */
-        .stSelectbox > div > div {
-            background-color: #262730 !important;
-        }
-        
+        .stSelectbox > div > div { background-color: #262730 !important; }
         .stSelectbox > div > div > div {
             color: #FAFAFA !important;
             background-color: #262730 !important;
         }
-        
-        /* Selectbox dropdown menu - the list that opens */
         .stSelectbox div[data-baseweb="select"] > div {
             background-color: white !important;
             color: #1E1E1E !important;
         }
-        
-        .stSelectbox ul[role="listbox"] {
-            background-color: white !important;
-        }
-        
+        .stSelectbox ul[role="listbox"] { background-color: white !important; }
         .stSelectbox li[role="option"] {
             color: #1E1E1E !important;
             background-color: white !important;
         }
-        
-        .stSelectbox li[role="option"]:hover {
-            background-color: #E8E8E8 !important;
-        }
-        
-        /* Force dropdown menu background */
-        [data-baseweb="popover"] {
-            background-color: white !important;
-        }
-        
-        [data-baseweb="popover"] > div {
-            background-color: white !important;
-        }
-        
-        /* Date input */
+        .stSelectbox li[role="option"]:hover { background-color: #E8E8E8 !important; }
+        [data-baseweb="popover"], [data-baseweb="popover"] > div { background-color: white !important; }
         .stDateInput > div > div > input {
             color: #FAFAFA !important;
             background-color: #262730 !important;
             border: 1px solid #4A4A4A !important;
         }
-        
-        /* Date picker dropdown */
-        .stDateInput [data-baseweb="popover"] {
-            background-color: white !important;
-        }
-        
+        .stDateInput [data-baseweb="popover"] { background-color: white !important; }
         .stDateInput [data-baseweb="calendar"] {
             background-color: white !important;
             color: #1E1E1E !important;
         }
-        
-        /* Fix dataframe */
-        .stDataFrame {
-            background-color: #262730 !important;
-        }
-        
-        .stDataFrame table {
-            color: #FAFAFA !important;
-        }
-        
-        /* All labels and text should be light */
-        label {
-            color: #FAFAFA !important;
-        }
-        
-        /* Main text areas - but not buttons */
-        .main p {
-            color: #FAFAFA !important;
-        }
-        
-        /* Headings should be light */
+        .stDataFrame { background-color: #262730 !important; }
+        .stDataFrame table { color: #FAFAFA !important; }
+        label { color: #FAFAFA !important; }
+        .main p { color: #FAFAFA !important; }
         h1, h2, h3, h4, h5, h6 {
             color: #FAFAFA !important;
             font-weight: 600 !important;
         }
-        
-        /* Subheaders with emoji styling */
         .main h2 {
             font-size: 1.8rem !important;
             margin-bottom: 1rem !important;
             border-bottom: 2px solid #4A4A4A !important;
             padding-bottom: 0.5rem !important;
         }
-        
         .main h3 {
             font-size: 1.4rem !important;
             margin-top: 1.5rem !important;
             margin-bottom: 0.8rem !important;
         }
-        
-        /* Keep button text default (not white) */
-        button {
-            color: inherit !important;
-        }
-        
+        button { color: inherit !important; }
         .stButton > button {
             color: white !important;
             background-color: #FF4B4B !important;
         }
-        
         .stButton > button[kind="primary"] {
             background-color: #FF4B4B !important;
             color: white !important;
         }
-        
-        /* Selectbox text should be dark when selected */
         .stSelectbox option {
             color: #1E1E1E !important;
             background-color: white !important;
         }
-        
-        /* Form background */
         .stForm {
             background-color: #1E1E1E !important;
             border: 1px solid #4A4A4A !important;
             padding: 20px;
             border-radius: 10px;
         }
-        
-        /* Make placeholder text visible */
         ::placeholder {
             color: #888888 !important;
             opacity: 1 !important;
         }
+        .stSuccess, .stWarning, .stInfo, .stError { color: #1E1E1E !important; }
+        .stSuccess p, .stWarning p, .stInfo p, .stError p { color: #1E1E1E !important; }
+        .stCaptionContainer { color: #A0A0A0 !important; }
+        .stTabs [data-baseweb="tab-list"] { background-color: #1E1E1E !important; }
+        .stTabs [data-baseweb="tab"] { color: #FAFAFA !important; }
         
-        /* Fix markdown text in boxes */
-        .stSuccess, .stWarning, .stInfo, .stError {
-            color: #1E1E1E !important;
-        }
-        
-        .stSuccess p, .stWarning p, .stInfo p, .stError p {
-            color: #1E1E1E !important;
-        }
-        
-        /* Caption text */
-        .stCaptionContainer {
-            color: #A0A0A0 !important;
-        }
-        
-        /* Tabs */
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: #1E1E1E !important;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            color: #FAFAFA !important;
-        }
+        /* Quality grade badges */
+        .grade-a { background-color: #00C851; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+        .grade-b { background-color: #33b5e5; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+        .grade-c { background-color: #ffbb33; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+        .grade-f { background-color: #ff4444; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
         </style>
         """, unsafe_allow_html=True)
         
@@ -243,33 +165,18 @@ def render_trading_journal_tab():
             "📜 Trade History"
         ])
         
-        # ═══════════════════════════════════════════════════════════════════════════
-        # TAB 1: WATCHLIST MANAGEMENT
-        # ═══════════════════════════════════════════════════════════════════════════
         with tab1:
             render_watchlist_tab(journal)
         
-        # ═══════════════════════════════════════════════════════════════════════════
-        # TAB 2: OPEN POSITIONS & TRADE ENTRY
-        # ═══════════════════════════════════════════════════════════════════════════
         with tab2:
             render_positions_tab(journal)
         
-        # ═══════════════════════════════════════════════════════════════════════════
-        # TAB 3: DAILY MONITORING DASHBOARD
-        # ═══════════════════════════════════════════════════════════════════════════
         with tab3:
             render_monitor_tab(journal)
         
-        # ═══════════════════════════════════════════════════════════════════════════
-        # TAB 4: PERFORMANCE SUMMARY
-        # ═══════════════════════════════════════════════════════════════════════════
         with tab4:
             render_performance_tab(journal)
         
-        # ═══════════════════════════════════════════════════════════════════════════
-        # TAB 5: TRADE HISTORY
-        # ═══════════════════════════════════════════════════════════════════════════
         with tab5:
             render_history_tab(journal)
             
@@ -280,7 +187,7 @@ def render_trading_journal_tab():
 
 @safe_render
 def render_watchlist_tab(journal):
-    """Render the watchlist management tab"""
+    """Render the watchlist management tab with QUALITY SCORING"""
     st.subheader("Watchlist - Potential Setups")
     
     # Add to watchlist form
@@ -318,96 +225,286 @@ def render_watchlist_tab(journal):
         st.markdown("---")
         
         # ═══════════════════════════════════════════════════════════════════════
-        # WATCHLIST SCANNER - Check all tickers for entry signals
+        # ENHANCED SCANNER - Entry Signals + Quality Scoring
         # ═══════════════════════════════════════════════════════════════════════
-        st.subheader("📡 Entry Signal Scanner")
+        st.subheader("📡 Entry Signal Scanner with Quality Scoring")
         
-        col_scan1, col_scan2 = st.columns([2, 1])
+        st.markdown("""
+        **What this scanner checks:**
+        1. ✅ **Entry Signal** - Daily MACD cross + AO positive + AO crossed zero recently + Market filter
+        2. 📊 **Quality Score** - Backtests the ticker to calculate win rate and expected returns
+        3. 📈 **Weekly Status** - Checks if Weekly MACD confirms the trend
+        """)
+        
+        col_scan1, col_scan2, col_scan3 = st.columns([2, 1, 1])
         with col_scan1:
-            if st.button("🔍 Scan All Watchlist Tickers", type="primary", use_container_width=True):
-                st.session_state['run_scan'] = True
+            if st.button("🔍 Scan All (Entry + Quality)", type="primary", use_container_width=True):
+                st.session_state['run_full_scan'] = True
                 st.rerun()
         
         with col_scan2:
-            min_conditions = st.selectbox("Min Conditions", options=[3, 4, 5], index=1, help="Minimum conditions met to show ticker")
+            if st.button("⚡ Quick Scan (Entry Only)", use_container_width=True):
+                st.session_state['run_quick_scan'] = True
+                st.rerun()
         
-        if st.session_state.get('run_scan'):
-            with st.spinner("Scanning watchlist for entry signals..."):
-                all_results = []  # Store ALL tickers, not just passing ones
+        with col_scan3:
+            min_grade = st.selectbox("Min Grade", options=['Any', 'C+', 'B+', 'A'], index=0)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # FULL SCAN - Entry + Quality
+        # ═══════════════════════════════════════════════════════════════════════
+        if st.session_state.get('run_full_scan'):
+            st.session_state['run_full_scan'] = False
+            
+            all_results = []
+            tickers = watchlist_df['Ticker'].tolist()
+            
+            progress_bar = st.progress(0, text="Scanning...")
+            
+            for idx, ticker in enumerate(tickers):
+                progress_bar.progress((idx + 1) / len(tickers), text=f"Analyzing {ticker}...")
                 
-                for ticker in watchlist_df['Ticker'].tolist():
+                try:
+                    # Full analysis
+                    analysis = analyze_ticker_full(ticker)
+                    
+                    # Entry checks
+                    checks = analysis['entry_signal'].get('checks', {})
+                    is_valid = analysis['entry_signal'].get('is_valid', False)
+                    
+                    # Quality metrics
+                    quality = analysis.get('quality', {})
+                    grade = quality.get('quality_grade', 'N/A')
+                    score = quality.get('quality_score', 0)
+                    win_rate = quality.get('win_rate', 0)
+                    avg_return = quality.get('avg_return', 0)
+                    signals_found = quality.get('signals_found', 0)
+                    
+                    # Weekly status
+                    weekly = analysis.get('weekly_status', {})
+                    weekly_bullish = weekly.get('weekly_bullish', False)
+                    signal_type = weekly.get('signal_type', 'N/A')
+                    
+                    # Grade emoji
+                    grade_emoji = {'A': '🏆', 'B': '✅', 'C': '⚠️', 'F': '❌', 'N/A': '❓'}.get(grade, '❓')
+                    
+                    # Status determination
+                    if is_valid and grade in ['A', 'B']:
+                        status = '🟢 READY'
+                    elif is_valid and grade == 'C':
+                        status = '🟡 CAUTION'
+                    elif checks.get('valid_relaxed') and grade in ['A', 'B']:
+                        status = '🟡 WATCH'
+                    else:
+                        status = '🔴 SKIP'
+                    
+                    all_results.append({
+                        'Ticker': ticker,
+                        'Status': status,
+                        'Grade': f"{grade_emoji} {grade}",
+                        'Score': score,
+                        'Win%': f"{win_rate:.0f}%",
+                        'Avg Ret': f"{avg_return:+.1f}%",
+                        'Signals': signals_found,
+                        'Weekly': '🟢' if weekly_bullish else '🔴',
+                        'Type': signal_type,
+                        'MACD✓': '✅' if checks.get('daily_macd_cross') else ('🟡' if checks.get('macd_bullish') else '❌'),
+                        'AO>0': '✅' if checks.get('ao_positive') else '❌',
+                        'AO Cross': '✅' if checks.get('ao_recent_cross') else '❌',
+                        'Mkt OK': '✅' if (checks.get('spy_above_200') and checks.get('vix_below_30')) else '❌',
+                        'Recommendation': analysis.get('recommendation', 'SKIP'),
+                        '_grade': grade,
+                        '_score': score
+                    })
+                    
+                except Exception as e:
+                    all_results.append({
+                        'Ticker': ticker,
+                        'Status': '⚠️ ERROR',
+                        'Grade': '❓ N/A',
+                        'Score': 0,
+                        'Win%': 'N/A',
+                        'Avg Ret': 'N/A',
+                        'Signals': 0,
+                        'Weekly': '❓',
+                        'Type': 'N/A',
+                        'MACD✓': '❌',
+                        'AO>0': '❌',
+                        'AO Cross': '❌',
+                        'Mkt OK': '❌',
+                        'Recommendation': 'ERROR',
+                        '_grade': 'F',
+                        '_score': 0
+                    })
+            
+            progress_bar.empty()
+            st.session_state['scan_results'] = all_results
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # QUICK SCAN - Entry Only (no backtest)
+        # ═══════════════════════════════════════════════════════════════════════
+        if st.session_state.get('run_quick_scan'):
+            st.session_state['run_quick_scan'] = False
+            
+            all_results = []
+            tickers = watchlist_df['Ticker'].tolist()
+            
+            with st.spinner("Quick scanning for entry signals..."):
+                for ticker in tickers:
                     try:
                         is_valid, checks = validate_entry_conditions(ticker)
-                        conditions_met = sum(1 for v in checks.values() if v and v != 'error')
+                        weekly = check_weekly_confirmation(ticker)
                         
-                        # Store ALL tickers with their results
+                        conditions_met = sum(1 for k, v in checks.items() 
+                                           if k in ['daily_macd_cross', 'ao_positive', 'ao_recent_cross', 'spy_above_200', 'vix_below_30'] 
+                                           and v == True)
+                        
+                        if is_valid:
+                            status = '🟢 READY'
+                        elif checks.get('valid_relaxed'):
+                            status = '🟡 WATCH'
+                        elif conditions_met >= 3:
+                            status = f'🟡 {conditions_met}/5'
+                        else:
+                            status = f'🔴 {conditions_met}/5'
+                        
                         all_results.append({
                             'Ticker': ticker,
-                            'Conditions': f"{conditions_met}/5",
-                            'Status': '🟢 READY' if is_valid else f'🟡 {conditions_met}/5',
-                            'MACD Cross': '✅' if checks.get('daily_macd_cross') else '❌',
-                            'AO > 0': '✅' if checks.get('ao_positive') else '❌',
-                            'AO Recent Cross': '✅' if checks.get('ao_recent_cross') else '❌',
-                            'SPY 200': '✅' if checks.get('spy_above_200') else '❌',
-                            'VIX < 30': '✅' if checks.get('vix_below_30') else '❌',
-                            'conditions_count': conditions_met  # For filtering
+                            'Status': status,
+                            'Grade': '⏳ Run Full',
+                            'Score': '-',
+                            'Win%': '-',
+                            'Avg Ret': '-',
+                            'Signals': '-',
+                            'Weekly': '🟢' if weekly.get('weekly_bullish') else '🔴',
+                            'Type': weekly.get('signal_type', 'N/A'),
+                            'MACD✓': '✅' if checks.get('daily_macd_cross') else ('🟡' if checks.get('macd_bullish') else '❌'),
+                            'AO>0': '✅' if checks.get('ao_positive') else '❌',
+                            'AO Cross': '✅' if checks.get('ao_recent_cross') else '❌',
+                            'Mkt OK': '✅' if (checks.get('spy_above_200') and checks.get('vix_below_30')) else '❌',
+                            'Recommendation': 'ENTER' if is_valid else 'WAIT',
+                            '_grade': 'N/A',
+                            '_score': 0
                         })
+                        
                     except Exception as e:
                         all_results.append({
                             'Ticker': ticker,
-                            'Conditions': 'ERROR',
                             'Status': '⚠️ ERROR',
-                            'MACD Cross': '❌',
-                            'AO > 0': '❌',
-                            'AO Recent Cross': '❌',
-                            'SPY 200': '❌',
-                            'VIX < 30': '❌',
-                            'conditions_count': 0
+                            'Grade': '❓',
+                            'Score': '-',
+                            'Win%': '-',
+                            'Avg Ret': '-',
+                            'Signals': '-',
+                            'Weekly': '❓',
+                            'Type': '-',
+                            'MACD✓': '❌',
+                            'AO>0': '❌',
+                            'AO Cross': '❌',
+                            'Mkt OK': '❌',
+                            'Recommendation': 'ERROR',
+                            '_grade': 'F',
+                            '_score': 0
                         })
-                        st.warning(f"⚠️ {ticker}: {str(e)}")
-                
-                st.session_state['run_scan'] = False
-                
-                if all_results:
-                    # Sort by conditions met (descending)
-                    all_df = pd.DataFrame(all_results)
-                    all_df = all_df.sort_values('conditions_count', ascending=False)
-                    
-                    # Filter for display
-                    passing = all_df[all_df['conditions_count'] >= min_conditions]
-                    failing = all_df[all_df['conditions_count'] < min_conditions]
-                    
-                    if len(passing) > 0:
-                        st.success(f"✅ Found {len(passing)} ticker(s) with {min_conditions}+ conditions met!")
-                        
-                        # Show passing tickers
-                        display_df = passing.drop(columns=['conditions_count'])
-                        st.dataframe(display_df, use_container_width=True, hide_index=True)
-                        
-                        # Highlight ready-to-trade
-                        ready_tickers = passing[passing['Status'] == '🟢 READY']['Ticker'].tolist()
-                        if ready_tickers:
-                            st.success(f"**🎯 Ready to trade NOW:** {', '.join(ready_tickers)}")
-                    else:
-                        st.info(f"No tickers with {min_conditions}+ conditions. See excluded tickers below ↓")
-                    
-                    # Show excluded tickers with reason
-                    if len(failing) > 0:
-                        with st.expander(f"📊 View Excluded Tickers ({len(failing)}) - Why they didn't qualify"):
-                            st.caption(f"These tickers have <{min_conditions} conditions met:")
-                            excluded_df = failing.drop(columns=['conditions_count'])
-                            st.dataframe(excluded_df, use_container_width=True, hide_index=True)
-                    
-                    # Save all results to session
-                    st.session_state['last_scan_results'] = all_results
-                else:
-                    st.warning("No tickers to scan. Add some to your watchlist first!")
+            
+            st.session_state['scan_results'] = all_results
         
-        # Show last scan results if available
-        elif 'last_scan_results' in st.session_state and st.session_state['last_scan_results']:
-            st.caption("**Last scan results:**")
-            scan_df = pd.DataFrame(st.session_state['last_scan_results'])
-            st.dataframe(scan_df, use_container_width=True, hide_index=True)
+        # ═══════════════════════════════════════════════════════════════════════
+        # DISPLAY RESULTS
+        # ═══════════════════════════════════════════════════════════════════════
+        if 'scan_results' in st.session_state and st.session_state['scan_results']:
+            results = st.session_state['scan_results']
+            df = pd.DataFrame(results)
+            
+            # Filter by grade if selected
+            if min_grade == 'A':
+                df = df[df['_grade'] == 'A']
+            elif min_grade == 'B+':
+                df = df[df['_grade'].isin(['A', 'B'])]
+            elif min_grade == 'C+':
+                df = df[df['_grade'].isin(['A', 'B', 'C'])]
+            
+            # Sort by score
+            df = df.sort_values('_score', ascending=False)
+            
+            # Separate ready vs others
+            ready = df[df['Status'].str.contains('READY')]
+            watch = df[df['Status'].str.contains('WATCH|CAUTION')]
+            skip = df[~df['Status'].str.contains('READY|WATCH|CAUTION')]
+            
+            # Show summary
+            st.markdown(f"""
+            ### Scan Results
+            - 🟢 **Ready to Trade:** {len(ready)}
+            - 🟡 **Watch/Caution:** {len(watch)}
+            - 🔴 **Skip:** {len(skip)}
+            """)
+            
+            # Ready tickers
+            if len(ready) > 0:
+                st.success(f"**🎯 Ready to Trade:** {', '.join(ready['Ticker'].tolist())}")
+                display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Type', 'MACD✓', 'AO>0', 'AO Cross']
+                st.dataframe(ready[display_cols], use_container_width=True, hide_index=True)
+            
+            # Watch tickers
+            if len(watch) > 0:
+                with st.expander(f"🟡 Watch List ({len(watch)} tickers)"):
+                    display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0', 'AO Cross']
+                    st.dataframe(watch[display_cols], use_container_width=True, hide_index=True)
+            
+            # Skip tickers
+            if len(skip) > 0:
+                with st.expander(f"🔴 Skipped ({len(skip)} tickers)"):
+                    display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'MACD✓', 'AO>0', 'AO Cross', 'Mkt OK']
+                    st.dataframe(skip[display_cols], use_container_width=True, hide_index=True)
+            
+            # Detailed analysis for selected ticker
+            st.markdown("---")
+            st.subheader("🔬 Detailed Ticker Analysis")
+            
+            selected_ticker = st.selectbox(
+                "Select ticker for detailed analysis",
+                options=df['Ticker'].tolist()
+            )
+            
+            if st.button(f"📊 Analyze {selected_ticker} in Detail"):
+                with st.spinner(f"Running detailed analysis on {selected_ticker}..."):
+                    analysis = analyze_ticker_full(selected_ticker)
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("### Entry Signal Validation")
+                        is_valid = analysis['entry_signal'].get('is_valid', False)
+                        checks = analysis['entry_signal'].get('checks', {})
+                        st.markdown(format_entry_validation(is_valid, checks))
+                    
+                    with col2:
+                        st.markdown("### Quality Score (Backtest)")
+                        quality = analysis.get('quality', {})
+                        st.markdown(format_quality_score(quality))
+                    
+                    # Weekly status
+                    weekly = analysis.get('weekly_status', {})
+                    st.markdown("### Weekly Trend Status")
+                    if weekly.get('weekly_bullish'):
+                        st.success(f"✅ **Weekly MACD Bullish** - {weekly.get('signal_type', '')}")
+                    else:
+                        st.warning(f"⚠️ **Weekly MACD Bearish** - {weekly.get('signal_type', '')}")
+                    
+                    # Overall recommendation
+                    st.markdown("### 🎯 Recommendation")
+                    rec = analysis.get('recommendation', 'SKIP')
+                    summary = analysis.get('summary', '')
+                    
+                    if rec == 'STRONG BUY':
+                        st.success(f"**{rec}**: {summary}")
+                    elif rec == 'BUY':
+                        st.info(f"**{rec}**: {summary}")
+                    elif rec == 'WATCH':
+                        st.warning(f"**{rec}**: {summary}")
+                    else:
+                        st.error(f"**{rec}**: {summary}")
         
         st.markdown("---")
         
@@ -487,7 +584,7 @@ def render_positions_tab(journal):
                     
                     if current_price:
                         # Calculate ATR
-                        atr = calculate_atr(ticker)
+                        atr = calculate_atr_value(ticker)
                         
                         # Calculate stops
                         stop_loss, stop_type = calculate_strategy_stops(current_price, atr)
@@ -648,7 +745,7 @@ def render_monitor_tab(journal):
                     pnl = dashboard.get('unrealized_pnl', 0)
                     st.metric("Unrealized P&L", f"${pnl:,.2f}", delta=f"{pnl:+.2f}")
                 with col3:
-                    exposure = dashboard.get('total_exposure', 1)  # Avoid division by zero
+                    exposure = dashboard.get('total_exposure', 1)
                     pnl_pct = (pnl / exposure * 100) if exposure > 0 else 0
                     st.metric("Return %", f"{pnl_pct:+.2f}%")
                 
