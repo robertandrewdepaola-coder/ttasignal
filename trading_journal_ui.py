@@ -78,6 +78,7 @@ def render_trading_journal_tab():
             border: 1px solid #4A4A4A !important;
         }
         
+        /* Selectbox - dropdown itself */
         .stSelectbox > div > div {
             background-color: #262730 !important;
         }
@@ -87,10 +88,40 @@ def render_trading_journal_tab():
             background-color: #262730 !important;
         }
         
+        /* Selectbox dropdown menu (the list that appears) */
+        .stSelectbox [data-baseweb="popover"] {
+            background-color: white !important;
+        }
+        
+        .stSelectbox [role="listbox"] {
+            background-color: white !important;
+        }
+        
+        .stSelectbox [role="option"] {
+            color: #1E1E1E !important;
+            background-color: white !important;
+        }
+        
+        .stSelectbox [role="option"]:hover {
+            background-color: #E8E8E8 !important;
+            color: #1E1E1E !important;
+        }
+        
+        /* Date input */
         .stDateInput > div > div > input {
             color: #FAFAFA !important;
             background-color: #262730 !important;
             border: 1px solid #4A4A4A !important;
+        }
+        
+        /* Date picker dropdown */
+        .stDateInput [data-baseweb="popover"] {
+            background-color: white !important;
+        }
+        
+        .stDateInput [data-baseweb="calendar"] {
+            background-color: white !important;
+            color: #1E1E1E !important;
         }
         
         /* Fix dataframe */
@@ -107,8 +138,30 @@ def render_trading_journal_tab():
             color: #FAFAFA !important;
         }
         
-        p, span, div {
+        /* Main text areas - but not buttons */
+        .main p, .main span, .main div:not(button) {
             color: #FAFAFA !important;
+        }
+        
+        /* Keep button text default (not white) */
+        button {
+            color: inherit !important;
+        }
+        
+        .stButton > button {
+            color: white !important;
+            background-color: #FF4B4B !important;
+        }
+        
+        .stButton > button[kind="primary"] {
+            background-color: #FF4B4B !important;
+            color: white !important;
+        }
+        
+        /* Selectbox text should be dark when selected */
+        .stSelectbox option {
+            color: #1E1E1E !important;
+            background-color: white !important;
         }
         
         /* Form background */
