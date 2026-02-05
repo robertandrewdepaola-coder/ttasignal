@@ -3898,6 +3898,7 @@ with st.sidebar:
     
     # v16.12: Always show timeframes for MTF modes
     st.caption("📊 **MTF Timeframes: M / W / D** (Monthly, Weekly, Daily)")
+        
     # Trading Journal Mode Selector
     st.markdown("---")
     st.markdown("##### App Mode")
@@ -3907,7 +3908,7 @@ with st.sidebar:
         index=0,
         label_visibility="collapsed",
         key="app_mode"
-    
+    )
     if ultimate_individual:
         st.caption("ULTIMATE: 5-Gate MACD Entry + Triple Confirmation Exit")
     elif mtf_individual:
