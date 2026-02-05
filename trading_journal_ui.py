@@ -54,19 +54,31 @@ def render_trading_journal_tab():
         # Custom CSS for better dark theme visibility
         st.markdown("""
         <style>
-        /* Fix text inputs for dark theme */
+        /* Fix all text to be light on dark */
+        .stApp {
+            background-color: #0E1117;
+        }
+        
+        /* Text inputs - dark background, light text */
         .stTextInput > div > div > input {
             color: #FAFAFA !important;
             background-color: #262730 !important;
+            border: 1px solid #4A4A4A !important;
         }
         
         .stTextArea > div > div > textarea {
             color: #FAFAFA !important;
             background-color: #262730 !important;
+            border: 1px solid #4A4A4A !important;
         }
         
         .stNumberInput > div > div > input {
             color: #FAFAFA !important;
+            background-color: #262730 !important;
+            border: 1px solid #4A4A4A !important;
+        }
+        
+        .stSelectbox > div > div {
             background-color: #262730 !important;
         }
         
@@ -75,9 +87,68 @@ def render_trading_journal_tab():
             background-color: #262730 !important;
         }
         
-        /* Fix dataframe text */
-        .stDataFrame {
+        .stDateInput > div > div > input {
             color: #FAFAFA !important;
+            background-color: #262730 !important;
+            border: 1px solid #4A4A4A !important;
+        }
+        
+        /* Fix dataframe */
+        .stDataFrame {
+            background-color: #262730 !important;
+        }
+        
+        .stDataFrame table {
+            color: #FAFAFA !important;
+        }
+        
+        /* All labels and text should be light */
+        label {
+            color: #FAFAFA !important;
+        }
+        
+        p, span, div {
+            color: #FAFAFA !important;
+        }
+        
+        /* Form background */
+        .stForm {
+            background-color: #1E1E1E !important;
+            border: 1px solid #4A4A4A !important;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        /* Make placeholder text visible */
+        ::placeholder {
+            color: #888888 !important;
+            opacity: 1 !important;
+        }
+        
+        /* Fix markdown text in boxes */
+        .stSuccess, .stWarning, .stInfo, .stError {
+            color: #1E1E1E !important;
+        }
+        
+        .stSuccess p, .stWarning p, .stInfo p, .stError p {
+            color: #1E1E1E !important;
+        }
+        
+        /* Caption text */
+        .stCaptionContainer {
+            color: #A0A0A0 !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #1E1E1E !important;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            color: #FAFAFA !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         }
         
         /* Ensure all text is visible */
@@ -181,6 +252,76 @@ def render_watchlist_tab(journal):
     if watchlist_df.empty:
         st.info("📝 Watchlist is empty. Add potential trades above.")
     else:
+        st.markdown("---")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # WATCHLIST SCANNER - Check all tickers for entry signals
+        # ═══════════════════════════════════════════════════════════════════════
+        st.subheader("📡 Entry Signal Scanner")
+        
+        col_scan1, col_scan2 = st.columns([2, 1])
+        with col_scan1:
+            if st.button("🔍 Scan All Watchlist Tickers", type="primary", use_container_width=True):
+                st.session_state['run_scan'] = True
+                st.rerun()
+        
+        with col_scan2:
+            min_conditions = st.selectbox("Min Conditions", options=[3, 4, 5], index=1, help="Minimum conditions met to show ticker")
+        
+        if st.session_state.get('run_scan'):
+            with st.spinner("Scanning watchlist for entry signals..."):
+                scan_results = []
+                
+                for ticker in watchlist_df['Ticker'].tolist():
+                    try:
+                        is_valid, checks = validate_entry_conditions(ticker)
+                        conditions_met = sum(1 for v in checks.values() if v and v != 'error')
+                        
+                        if conditions_met >= min_conditions:
+                            scan_results.append({
+                                'Ticker': ticker,
+                                'Conditions': f"{conditions_met}/5",
+                                'Status': '🟢 READY' if is_valid else f'🟡 {conditions_met}/5',
+                                'MACD Cross': '✅' if checks.get('daily_macd_cross') else '❌',
+                                'AO > 0': '✅' if checks.get('ao_positive') else '❌',
+                                'AO Recent Cross': '✅' if checks.get('ao_recent_cross') else '❌',
+                                'SPY 200': '✅' if checks.get('spy_above_200') else '❌',
+                                'VIX < 30': '✅' if checks.get('vix_below_30') else '❌'
+                            })
+                    except Exception as e:
+                        st.warning(f"Error scanning {ticker}: {str(e)}")
+                
+                st.session_state['run_scan'] = False
+                
+                if scan_results:
+                    st.success(f"Found {len(scan_results)} ticker(s) with {min_conditions}+ conditions met!")
+                    
+                    # Sort by conditions met (descending)
+                    scan_df = pd.DataFrame(scan_results)
+                    scan_df = scan_df.sort_values('Conditions', ascending=False)
+                    
+                    st.dataframe(scan_df, use_container_width=True, hide_index=True)
+                    
+                    # Highlight ready-to-trade tickers
+                    ready_tickers = [r['Ticker'] for r in scan_results if r['Status'] == '🟢 READY']
+                    if ready_tickers:
+                        st.success(f"**Ready to trade:** {', '.join(ready_tickers)}")
+                    
+                    # Save scan results to session
+                    st.session_state['last_scan_results'] = scan_results
+                else:
+                    st.info(f"No tickers found with {min_conditions}+ conditions met. Try lowering the minimum.")
+        
+        # Show last scan results if available
+        elif 'last_scan_results' in st.session_state and st.session_state['last_scan_results']:
+            st.caption("**Last scan results:**")
+            scan_df = pd.DataFrame(st.session_state['last_scan_results'])
+            st.dataframe(scan_df, use_container_width=True, hide_index=True)
+        
+        st.markdown("---")
+        
+        # Display watchlist table
+        st.subheader("Current Watchlist")
         st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
         
         # Remove from watchlist
@@ -322,11 +463,27 @@ def render_positions_tab(journal):
             st.error(f"❌ Risk too high ({risk_pct:.1f}%). TTA strategy uses max 15% stop.")
         else:
             target_val = target if target > 0 else None
+            
+            # Get entry conditions if they were validated
+            entry_conditions_data = None
+            if 'entry_validation' in st.session_state:
+                is_valid, checks = st.session_state['entry_validation']
+                entry_conditions_data = {
+                    'validated_at': datetime.now().isoformat(),
+                    'all_conditions_met': is_valid,
+                    'conditions': checks
+                }
+            
             result = journal.enter_trade(
                 ticker=ticker,
                 entry_price=entry_price,
                 stop_loss=stop_loss,
                 position_size=position_size,
+                entry_date=entry_date.strftime('%Y-%m-%d'),
+                notes=notes,
+                target=target_val,
+                entry_conditions=entry_conditions_data
+            )
                 entry_date=entry_date.strftime('%Y-%m-%d'),
                 notes=notes,
                 target=target_val
