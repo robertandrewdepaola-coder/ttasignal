@@ -182,9 +182,43 @@ def render_trading_journal_tab():
         journal = st.session_state.journal
         
         # Inject custom professional CSS
-        inject_custom_css()
+        if STYLES_AVAILABLE:
+            inject_custom_css()
+        else:
+            # Fallback inline CSS if tta_styles couldn't be imported
+            st.markdown("""
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                .stApp { 
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+                    background: linear-gradient(180deg, #0D1117 0%, #161B22 100%) !important;
+                }
+                .stButton > button {
+                    background: linear-gradient(135deg, #238636 0%, #2EA043 100%) !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 6px !important;
+                    font-weight: 500 !important;
+                }
+                .stButton > button:hover {
+                    background: linear-gradient(135deg, #2EA043 0%, #3FB950 100%) !important;
+                }
+                h1, h2, h3 { color: #F0F6FC !important; }
+                .stTabs [data-baseweb="tab"] { 
+                    color: #8B949E !important;
+                    background: transparent !important;
+                }
+                .stTabs [aria-selected="true"] {
+                    color: #58A6FF !important;
+                    border-bottom-color: #58A6FF !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
         
         st.title("📊 Live Trading Journal")
+        
+        # DEBUG: Show version to confirm deployment
+        st.caption(f"✨ v2.0 Professional Theme | Styles: {'✅' if STYLES_AVAILABLE else '❌'}")
         
         # Create tabs for different journal sections
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
