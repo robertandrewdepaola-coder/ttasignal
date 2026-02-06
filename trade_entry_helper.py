@@ -783,10 +783,10 @@ def validate_entry_conditions(ticker: str, entry_window: int = 20) -> Tuple[bool
         # Check for cross on current bar first
         macd_cross_today = (current_macd > current_signal) and (prev_macd <= prev_signal)
         
-        # Also check last 5 bars for a recent cross (still actionable)
+        # Also check last 10 bars for a recent cross (still actionable)
         macd_cross_recent = False
         macd_cross_bars_ago = 0
-        for lookback in range(5):
+        for lookback in range(10):
             check_idx = i - lookback
             if check_idx < 1:
                 break
