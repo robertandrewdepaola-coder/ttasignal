@@ -224,6 +224,76 @@ TTA_CUSTOM_CSS = """
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
     
+    /* ═══════════════════════════════════════════════════════════════════════
+       TEXT CONTRAST - Make all text bright and readable
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    /* Main content text - bright white */
+    .stApp p, .stApp span, .stApp li, .stApp div {
+        color: #E6EDF3 !important;
+    }
+    
+    /* Headers - pure white */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
+        color: #FFFFFF !important;
+    }
+    
+    /* Subheader styling */
+    [data-testid="stSubheader"], .stSubheader {
+        color: #FFFFFF !important;
+    }
+    
+    /* Markdown text */
+    .stMarkdown, .stMarkdown p, .stMarkdown span, .stMarkdown li {
+        color: #E6EDF3 !important;
+    }
+    
+    /* Labels */
+    .stTextInput label, .stSelectbox label, .stTextArea label, 
+    .stNumberInput label, .stDateInput label, .stCheckbox label,
+    [data-testid="stWidgetLabel"] {
+        color: #C9D1D9 !important;
+    }
+    
+    /* Caption text - slightly muted but still readable */
+    .stCaption, [data-testid="stCaptionContainer"] p {
+        color: #8B949E !important;
+    }
+    
+    /* Table text */
+    .stDataFrame, .stDataFrame td, .stDataFrame th,
+    [data-testid="stDataFrame"] td, [data-testid="stDataFrame"] th,
+    .stTable td, .stTable th {
+        color: #E6EDF3 !important;
+    }
+    
+    /* Table headers - brighter */
+    .stDataFrame th, [data-testid="stDataFrame"] th {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Info/Warning boxes text */
+    .stAlert p, [data-testid="stAlert"] p {
+        color: #1F2328 !important;
+    }
+    
+    /* Bullet points and lists */
+    .stMarkdown ul li, .stMarkdown ol li {
+        color: #E6EDF3 !important;
+    }
+    
+    /* Expander headers */
+    .stExpander summary, [data-testid="stExpander"] summary {
+        color: #FFFFFF !important;
+    }
+    
+    /* Selectbox text */
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox div[role="listbox"] li {
+        color: #E6EDF3 !important;
+    }
+    
     
     /* ═══════════════════════════════════════════════════════════════════════
        SIGNAL STATUS CARDS - Clean modular design
