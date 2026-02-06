@@ -985,25 +985,43 @@ def render_watchlist_tab(journal):
                         key=f"ai_assess_{selected_ticker}"
                     ):
                         with st.spinner("🤖 Generating AI trade narrative..."):
+                            import os
+                            gemini_model = None
+                            openai_client = None
+                            
+                            # Try to initialize Gemini first (preferred)
                             try:
-                                import os
-                                from openai import OpenAI
-                                
-                                openai_client = OpenAI(
-                                    api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
-                                    base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
-                                )
-                                
-                                ai_result = generate_ai_trade_narrative(
-                                    selected_ticker, 
-                                    openai_client=openai_client
-                                )
+                                import google.generativeai as genai
+                                gemini_api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+                                if gemini_api_key:
+                                    genai.configure(api_key=gemini_api_key)
+                                    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
                             except Exception as e:
-                                ai_result = generate_ai_trade_narrative(
-                                    selected_ticker, 
-                                    openai_client=None
-                                )
-                                ai_result['note'] = f"Using system analysis (AI unavailable)"
+                                pass  # Gemini not available, will try OpenAI
+                            
+                            # Try to initialize OpenAI as fallback
+                            try:
+                                from openai import OpenAI
+                                openai_key = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+                                if openai_key:
+                                    openai_client = OpenAI(
+                                        api_key=openai_key,
+                                        base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
+                                    )
+                            except Exception as e:
+                                pass  # OpenAI not available
+                            
+                            ai_result = generate_ai_trade_narrative(
+                                selected_ticker, 
+                                openai_client=openai_client,
+                                gemini_model=gemini_model
+                            )
+                            
+                            # Add provider info to note
+                            if ai_result.get('provider') == 'gemini':
+                                ai_result['note'] = 'Powered by Google Gemini'
+                            elif ai_result.get('provider') == 'openai':
+                                ai_result['note'] = 'Powered by OpenAI'
                             
                             st.session_state[f'ai_narrative_{selected_ticker}'] = ai_result
                     

@@ -1409,13 +1409,14 @@ def build_trade_context(ticker: str) -> Dict[str, Any]:
     return context
 
 
-def generate_ai_trade_narrative(ticker: str, openai_client=None) -> Dict[str, Any]:
+def generate_ai_trade_narrative(ticker: str, openai_client=None, gemini_model=None) -> Dict[str, Any]:
     """
-    Generate an AI-powered trade narrative using OpenAI.
+    Generate an AI-powered trade narrative using Google Gemini (preferred) or OpenAI.
     
     Args:
         ticker: Stock ticker to analyze
-        openai_client: OpenAI client instance (from app.py)
+        openai_client: OpenAI client instance (fallback)
+        gemini_model: Google Gemini model instance (preferred)
     
     Returns:
         Dict with narrative, recommendation, and metadata
@@ -1428,7 +1429,8 @@ def generate_ai_trade_narrative(ticker: str, openai_client=None) -> Dict[str, An
         'key_factors': [],
         'concerns': [],
         'success': False,
-        'error': None
+        'error': None,
+        'provider': None
     }
     
     # Build context
@@ -1492,32 +1494,56 @@ Please provide a trade narrative with:
 Keep the response concise and actionable. Be honest about risks.
 Format your response with clear headers."""
 
-    if openai_client is None:
+    # Check if no AI is available
+    if gemini_model is None and openai_client is None:
         # Return a structured assessment without AI
         result['narrative'] = _generate_fallback_narrative(context)
         result['recommendation'] = context['system_recommendation']
         result['confidence'] = 'MEDIUM'
         result['success'] = True
-        result['note'] = 'Generated without AI (no OpenAI client provided)'
+        result['provider'] = 'system'
+        result['note'] = 'Using system analysis (no AI configured)'
         return result
     
-    try:
-        # Call OpenAI
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",  # Use a cost-effective model
-            messages=[
-                {"role": "system", "content": "You are a professional trade analyst. Be concise, honest, and actionable."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=800,
-            temperature=0.7
-        )
-        
-        narrative = response.choices[0].message.content
+    narrative = None
+    
+    # Try Gemini first (preferred)
+    if gemini_model is not None:
+        try:
+            response = gemini_model.generate_content(
+                f"You are a professional trade analyst. Be concise, honest, and actionable.\n\n{prompt}"
+            )
+            narrative = response.text
+            result['provider'] = 'gemini'
+        except Exception as e:
+            error_str = str(e)
+            # Log but continue to try OpenAI
+            result['gemini_error'] = error_str[:100]
+    
+    # Try OpenAI if Gemini failed or unavailable
+    if narrative is None and openai_client is not None:
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a professional trade analyst. Be concise, honest, and actionable."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=800,
+                temperature=0.7
+            )
+            narrative = response.choices[0].message.content
+            result['provider'] = 'openai'
+        except Exception as e:
+            error_str = str(e)
+            result['openai_error'] = error_str[:100]
+    
+    # If we got a narrative, parse it
+    if narrative:
         result['narrative'] = narrative
         result['success'] = True
         
-        # Parse recommendation from narrative if possible
+        # Parse recommendation from narrative
         if 'STRONG BUY' in narrative.upper():
             result['recommendation'] = 'STRONG BUY'
             result['confidence'] = 'HIGH'
@@ -1533,23 +1559,27 @@ Format your response with clear headers."""
         else:
             result['recommendation'] = 'SKIP'
             result['confidence'] = 'LOW'
-            
-    except Exception as e:
-        error_str = str(e)
-        # Handle specific errors with user-friendly messages
-        if '429' in error_str:
-            result['note'] = 'Rate limit reached - try again in a minute'
-        elif '401' in error_str or 'authentication' in error_str.lower():
-            result['note'] = 'API key not configured'
-        elif '503' in error_str or 'unavailable' in error_str.lower():
-            result['note'] = 'AI service temporarily unavailable'
-        else:
-            result['note'] = 'Using system analysis (AI unavailable)'
-        
-        result['error'] = error_str[:100]  # Truncate long errors
+    else:
+        # Both APIs failed, use fallback
         result['narrative'] = _generate_fallback_narrative(context)
         result['recommendation'] = context['system_recommendation']
-        result['success'] = True  # Still return valid fallback data
+        result['confidence'] = 'MEDIUM'
+        result['success'] = True
+        result['provider'] = 'system'
+        
+        # Build error message
+        errors = []
+        if result.get('gemini_error'):
+            if '429' in result['gemini_error'] or 'quota' in result['gemini_error'].lower():
+                errors.append('Gemini: Rate limit')
+            else:
+                errors.append('Gemini unavailable')
+        if result.get('openai_error'):
+            if '429' in result['openai_error']:
+                errors.append('OpenAI: Rate limit')
+            else:
+                errors.append('OpenAI unavailable')
+        result['note'] = f"Using system analysis ({', '.join(errors) if errors else 'AI unavailable'})"
     
     return result
 
