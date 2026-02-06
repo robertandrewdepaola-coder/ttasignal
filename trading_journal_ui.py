@@ -15,6 +15,23 @@ import pandas as pd
 from datetime import datetime
 import traceback
 
+# Import custom CSS styles
+try:
+    from tta_styles import (
+        inject_custom_css,
+        render_signal_card,
+        render_check_list,
+        render_trade_setup,
+        render_recommendation_banner,
+        render_summary_stats,
+        render_ai_box,
+        render_section_header
+    )
+    STYLES_AVAILABLE = True
+except ImportError:
+    STYLES_AVAILABLE = False
+    def inject_custom_css(): pass
+
 # Graceful imports with error handling
 try:
     from trading_journal import TradingJournal
@@ -164,98 +181,8 @@ def render_trading_journal_tab():
         
         journal = st.session_state.journal
         
-        # Custom CSS for better dark theme visibility
-        st.markdown("""
-        <style>
-        .stApp { background-color: #0E1117; }
-        .stTextInput > div > div > input,
-        .stTextArea > div > div > textarea,
-        .stNumberInput > div > div > input {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-            border: 1px solid #4A4A4A !important;
-        }
-        .stSelectbox > div > div { background-color: #262730 !important; }
-        .stSelectbox > div > div > div {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-        }
-        .stSelectbox div[data-baseweb="select"] > div {
-            background-color: white !important;
-            color: #1E1E1E !important;
-        }
-        .stSelectbox ul[role="listbox"] { background-color: white !important; }
-        .stSelectbox li[role="option"] {
-            color: #1E1E1E !important;
-            background-color: white !important;
-        }
-        .stSelectbox li[role="option"]:hover { background-color: #E8E8E8 !important; }
-        [data-baseweb="popover"], [data-baseweb="popover"] > div { background-color: white !important; }
-        .stDateInput > div > div > input {
-            color: #FAFAFA !important;
-            background-color: #262730 !important;
-            border: 1px solid #4A4A4A !important;
-        }
-        .stDateInput [data-baseweb="popover"] { background-color: white !important; }
-        .stDateInput [data-baseweb="calendar"] {
-            background-color: white !important;
-            color: #1E1E1E !important;
-        }
-        .stDataFrame { background-color: #262730 !important; }
-        .stDataFrame table { color: #FAFAFA !important; }
-        label { color: #FAFAFA !important; }
-        .main p { color: #FAFAFA !important; }
-        h1, h2, h3, h4, h5, h6 {
-            color: #FAFAFA !important;
-            font-weight: 600 !important;
-        }
-        .main h2 {
-            font-size: 1.8rem !important;
-            margin-bottom: 1rem !important;
-            border-bottom: 2px solid #4A4A4A !important;
-            padding-bottom: 0.5rem !important;
-        }
-        .main h3 {
-            font-size: 1.4rem !important;
-            margin-top: 1.5rem !important;
-            margin-bottom: 0.8rem !important;
-        }
-        button { color: inherit !important; }
-        .stButton > button {
-            color: white !important;
-            background-color: #FF4B4B !important;
-        }
-        .stButton > button[kind="primary"] {
-            background-color: #FF4B4B !important;
-            color: white !important;
-        }
-        .stSelectbox option {
-            color: #1E1E1E !important;
-            background-color: white !important;
-        }
-        .stForm {
-            background-color: #1E1E1E !important;
-            border: 1px solid #4A4A4A !important;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        ::placeholder {
-            color: #888888 !important;
-            opacity: 1 !important;
-        }
-        .stSuccess, .stWarning, .stInfo, .stError { color: #1E1E1E !important; }
-        .stSuccess p, .stWarning p, .stInfo p, .stError p { color: #1E1E1E !important; }
-        .stCaptionContainer { color: #A0A0A0 !important; }
-        .stTabs [data-baseweb="tab-list"] { background-color: #1E1E1E !important; }
-        .stTabs [data-baseweb="tab"] { color: #FAFAFA !important; }
-        
-        /* Quality grade badges */
-        .grade-a { background-color: #00C851; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-        .grade-b { background-color: #33b5e5; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-        .grade-c { background-color: #ffbb33; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-        .grade-f { background-color: #ff4444; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-        </style>
-        """, unsafe_allow_html=True)
+        # Inject custom professional CSS
+        inject_custom_css()
         
         st.title("📊 Live Trading Journal")
         
@@ -797,127 +724,281 @@ def render_watchlist_tab(journal):
                     display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'MACD✓', 'AO>0', 'AO Cross', 'Mkt OK']
                     st.dataframe(low_quality_skip[display_cols], use_container_width=True, hide_index=True)
             
-            # Detailed analysis for selected ticker
+            # ═══════════════════════════════════════════════════════════════════
+            # DETAILED TICKER ANALYSIS - Clean Professional Layout
+            # ═══════════════════════════════════════════════════════════════════
             st.markdown("---")
-            st.subheader("🔬 Detailed Ticker Analysis")
+            
+            # Section header with clean styling
+            if STYLES_AVAILABLE:
+                st.markdown(render_section_header("🔬", "Detailed Ticker Analysis", "Select a ticker for comprehensive signal analysis"), unsafe_allow_html=True)
+            else:
+                st.subheader("🔬 Detailed Ticker Analysis")
             
             selected_ticker = st.selectbox(
                 "Select ticker for detailed analysis",
-                options=df['Ticker'].tolist()
+                options=df['Ticker'].tolist(),
+                key="detail_ticker_select"
             )
             
-            if st.button(f"📊 Analyze {selected_ticker} in Detail"):
-                with st.spinner(f"Running detailed analysis on {selected_ticker}..."):
+            if st.button(f"📊 Analyze {selected_ticker}", type="primary", use_container_width=False):
+                with st.spinner(f"Analyzing {selected_ticker}..."):
                     analysis = analyze_ticker_full(selected_ticker)
+                    st.session_state[f'analysis_{selected_ticker}'] = analysis
+            
+            # Display analysis if available
+            analysis_key = f'analysis_{selected_ticker}'
+            if analysis_key in st.session_state:
+                analysis = st.session_state[analysis_key]
+                is_valid = analysis['entry_signal'].get('is_valid', False)
+                checks = analysis['entry_signal'].get('checks', {})
+                quality = analysis.get('quality', {})
+                weekly = analysis.get('weekly_status', {})
+                rec = analysis.get('recommendation', 'SKIP')
+                summary = analysis.get('summary', '')
+                ao_confirm = analysis.get('ao_confirmation', {})
+                
+                # ── TRADE SETUP ────────────────────────────────────────────────
+                current_price = checks.get('entry_price') or fetch_current_price(selected_ticker)
+                atr = calculate_atr_value(selected_ticker)
+                stop_loss, stop_type = calculate_strategy_stops(current_price, atr) if current_price else (0, 'N/A')
+                target = current_price * 1.20 if current_price else 0
+                
+                if current_price and stop_loss and current_price > stop_loss:
+                    risk_pct = ((current_price - stop_loss) / current_price) * 100
+                    rr_ratio = (target - current_price) / (current_price - stop_loss)
+                else:
+                    risk_pct = 0
+                    rr_ratio = 0
+                
+                if STYLES_AVAILABLE:
+                    st.markdown(render_trade_setup(current_price or 0, stop_loss, target, risk_pct, rr_ratio), unsafe_allow_html=True)
+                else:
+                    col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+                    with col_t1:
+                        st.metric("Entry", f"${current_price:.2f}" if current_price else "N/A")
+                    with col_t2:
+                        st.metric("Stop", f"${stop_loss:.2f}")
+                    with col_t3:
+                        st.metric("Target", f"${target:.2f}")
+                    with col_t4:
+                        st.metric("R:R", f"1:{rr_ratio:.1f}")
+                
+                # ── SIGNAL STATUS CARDS ────────────────────────────────────────
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("##### 📡 Entry Signal")
                     
-                    col1, col2 = st.columns(2)
+                    # Build clean check display
+                    check_items = [
+                        ("MACD Cross Today", checks.get('daily_macd_cross', False), "Required for PRIMARY signal"),
+                        ("MACD Bullish", checks.get('macd_bullish', False), "MACD > Signal line"),
+                        ("AO Positive", checks.get('ao_positive', False), f"Value: {checks.get('ao_value', 0):.2f}"),
+                        ("AO Zero Cross", checks.get('ao_recent_cross', False), f"{checks.get('ao_cross_days_ago', 'N/A')} days ago"),
+                        ("SPY > 200 SMA", checks.get('spy_above_200', False), "Market filter"),
+                        ("VIX < 30", checks.get('vix_below_30', False), "Volatility filter"),
+                    ]
                     
-                    with col1:
-                        st.markdown("### Entry Signal Validation")
-                        is_valid = analysis['entry_signal'].get('is_valid', False)
-                        checks = analysis['entry_signal'].get('checks', {})
-                        st.markdown(format_entry_validation(is_valid, checks))
+                    for label, passed, note in check_items:
+                        icon = "✅" if passed else "❌"
+                        color = "#3FB950" if passed else "#F85149"
+                        st.markdown(f"""
+                        <div style="display: flex; align-items: center; padding: 8px 12px; margin: 4px 0; 
+                                    background: #161B22; border-radius: 6px; border-left: 3px solid {color};">
+                            <span style="margin-right: 10px;">{icon}</span>
+                            <span style="flex: 1; color: #F0F6FC;">{label}</span>
+                            <span style="color: #8B949E; font-size: 12px;">{note}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
-                    with col2:
-                        st.markdown("### Quality Score (Backtest)")
-                        quality = analysis.get('quality', {})
-                        st.markdown(format_quality_score(quality))
-                    
-                    # Late entry analysis
-                    if LATE_ENTRY_AVAILABLE:
-                        st.markdown("---")
-                        late_analysis = get_late_entry_analysis(selected_ticker)
-                        st.markdown(format_late_entry_status(late_analysis))
-                    
-                    # Weekly status
-                    weekly = analysis.get('weekly_status', {})
-                    st.markdown("### Weekly Trend Status")
-                    if weekly.get('weekly_bullish'):
-                        st.success(f"✅ **Weekly MACD Bullish** - {weekly.get('signal_type', '')}")
+                    # Signal verdict
+                    if is_valid:
+                        st.markdown("""
+                        <div style="padding: 12px; margin-top: 12px; background: linear-gradient(135deg, #1C2128, rgba(63, 185, 80, 0.15)); 
+                                    border: 1px solid #3FB950; border-radius: 8px;">
+                            <span style="color: #3FB950; font-weight: 600;">✅ PRIMARY SIGNAL VALID</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif ao_confirm.get('is_valid'):
+                        st.markdown(f"""
+                        <div style="padding: 12px; margin-top: 12px; background: linear-gradient(135deg, #1C2128, rgba(88, 166, 255, 0.15)); 
+                                    border: 1px solid #58A6FF; border-radius: 8px;">
+                            <span style="color: #58A6FF; font-weight: 600;">🔄 AO CONFIRMATION SIGNAL</span>
+                            <p style="color: #8B949E; font-size: 12px; margin: 8px 0 0 0;">
+                                MACD crossed {ao_confirm.get('macd_cross_days_ago', '?')} days ago at ${ao_confirm.get('macd_cross_price', 0):.2f}<br/>
+                                AO confirmed {ao_confirm.get('ao_cross_days_ago', '?')} day(s) ago • Premium: {ao_confirm.get('entry_premium_pct', 0):+.1f}%
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.warning(f"⚠️ **Weekly MACD Bearish** - {weekly.get('signal_type', '')}")
+                        st.markdown("""
+                        <div style="padding: 12px; margin-top: 12px; background: linear-gradient(135deg, #1C2128, rgba(248, 81, 73, 0.15)); 
+                                    border: 1px solid #F85149; border-radius: 8px;">
+                            <span style="color: #F85149; font-weight: 600;">❌ NO VALID SIGNAL</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown("##### 📊 Quality Score")
                     
-                    # Overall recommendation
-                    st.markdown("### 🎯 Recommendation")
-                    rec = analysis.get('recommendation', 'SKIP')
-                    summary = analysis.get('summary', '')
+                    grade = quality.get('quality_grade', 'N/A')
+                    score = quality.get('quality_score', 0)
+                    win_rate = quality.get('win_rate', 0)
+                    avg_ret = quality.get('avg_return', 0)
                     
-                    if rec == 'STRONG BUY':
+                    # Grade badge
+                    grade_colors = {
+                        'A': ('#3FB950', 'rgba(63, 185, 80, 0.2)'),
+                        'B': ('#58A6FF', 'rgba(88, 166, 255, 0.2)'),
+                        'C': ('#D29922', 'rgba(210, 153, 34, 0.2)'),
+                        'F': ('#F85149', 'rgba(248, 81, 73, 0.2)')
+                    }
+                    grade_color, grade_bg = grade_colors.get(grade, ('#8B949E', 'rgba(139, 148, 158, 0.2)'))
+                    
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 20px; background: {grade_bg}; 
+                                border: 1px solid {grade_color}; border-radius: 12px; margin-bottom: 16px;">
+                        <div style="font-size: 48px; font-weight: 700; color: {grade_color};">{grade}</div>
+                        <div style="font-size: 14px; color: #8B949E;">Quality Grade</div>
+                        <div style="font-size: 12px; color: #6E7681;">Score: {score}/100</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Metrics grid
+                    st.markdown(f"""
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div style="padding: 12px; background: #161B22; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 20px; font-weight: 600; color: #F0F6FC;">{win_rate:.0f}%</div>
+                            <div style="font-size: 11px; color: #8B949E;">Win Rate</div>
+                        </div>
+                        <div style="padding: 12px; background: #161B22; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 20px; font-weight: 600; color: {'#3FB950' if avg_ret >= 0 else '#F85149'};">{avg_ret:+.1f}%</div>
+                            <div style="font-size: 11px; color: #8B949E;">Avg Return</div>
+                        </div>
+                        <div style="padding: 12px; background: #161B22; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 20px; font-weight: 600; color: #3FB950;">{quality.get('best_return', 0):+.1f}%</div>
+                            <div style="font-size: 11px; color: #8B949E;">Best Trade</div>
+                        </div>
+                        <div style="padding: 12px; background: #161B22; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 20px; font-weight: 600; color: #F85149;">{quality.get('worst_return', 0):+.1f}%</div>
+                            <div style="font-size: 11px; color: #8B949E;">Worst Trade</div>
+                        </div>
+                    </div>
+                    <p style="text-align: center; color: #6E7681; font-size: 11px; margin-top: 8px;">
+                        Based on {quality.get('signals_found', 0)} historical signals
+                    </p>
+                    """, unsafe_allow_html=True)
+                
+                # ── WEEKLY TREND ───────────────────────────────────────────────
+                weekly_bullish = weekly.get('weekly_bullish', False)
+                signal_type = weekly.get('signal_type', 'N/A')
+                
+                if weekly_bullish:
+                    weekly_color = "#3FB950"
+                    weekly_icon = "📈"
+                    weekly_label = "BULLISH"
+                else:
+                    weekly_color = "#D29922"
+                    weekly_icon = "⚠️"
+                    weekly_label = "BEARISH"
+                
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; padding: 16px 20px; margin: 16px 0;
+                            background: linear-gradient(135deg, #161B22, rgba({weekly_color[1:][:2]}, {weekly_color[3:5]}, {weekly_color[5:]}, 0.1));
+                            border: 1px solid {weekly_color}; border-radius: 8px;">
+                    <span style="font-size: 24px; margin-right: 12px;">{weekly_icon}</span>
+                    <div>
+                        <div style="font-weight: 600; color: {weekly_color};">Weekly MACD: {weekly_label}</div>
+                        <div style="font-size: 13px; color: #8B949E;">{signal_type}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # ── RECOMMENDATION ─────────────────────────────────────────────
+                if STYLES_AVAILABLE:
+                    st.markdown(render_recommendation_banner(rec, summary), unsafe_allow_html=True)
+                else:
+                    if 'BUY' in rec.upper():
                         st.success(f"**{rec}**: {summary}")
-                    elif rec == 'BUY':
-                        st.info(f"**{rec}**: {summary}")
-                    elif rec == 'WATCH':
+                    elif 'WATCH' in rec.upper() or 'CAUTION' in rec.upper():
                         st.warning(f"**{rec}**: {summary}")
                     else:
                         st.error(f"**{rec}**: {summary}")
+                
+                # ── AI ASSESSMENT ──────────────────────────────────────────────
+                st.markdown("---")
+                
+                if AI_NARRATIVE_AVAILABLE:
+                    st.markdown("""
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                        <span style="font-size: 24px;">🤖</span>
+                        <div>
+                            <div style="font-weight: 600; color: #F0F6FC;">AI Trade Assessment</div>
+                            <div style="font-size: 12px; color: #6E7681;">GPT-powered analysis and recommendation</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # ═══════════════════════════════════════════════════════════
-                    # AI TRADE ASSESSMENT - GPT-powered narrative
-                    # ═══════════════════════════════════════════════════════════
-                    st.markdown("---")
-                    st.markdown("### 🤖 AI Trade Assessment")
-                    
-                    if AI_NARRATIVE_AVAILABLE:
-                        col_ai1, col_ai2 = st.columns([2, 1])
-                        with col_ai1:
-                            ai_btn = st.button(
-                                f"🧠 Get AI Assessment for {selected_ticker}", 
-                                type="secondary",
-                                use_container_width=True,
-                                key=f"ai_assess_{selected_ticker}"
-                            )
-                        with col_ai2:
-                            st.caption("Powered by GPT-4o-mini")
-                        
-                        if ai_btn:
-                            with st.spinner("🤖 Generating AI trade narrative..."):
-                                # Try to get OpenAI client from app.py
-                                try:
-                                    import os
-                                    from openai import OpenAI
-                                    
-                                    openai_client = OpenAI(
-                                        api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
-                                        base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
-                                    )
-                                    
-                                    ai_result = generate_ai_trade_narrative(
-                                        selected_ticker, 
-                                        openai_client=openai_client
-                                    )
-                                except Exception as e:
-                                    # Fall back to system-generated narrative
-                                    ai_result = generate_ai_trade_narrative(
-                                        selected_ticker, 
-                                        openai_client=None
-                                    )
-                                    ai_result['note'] = f"Using system analysis (AI unavailable: {str(e)[:30]})"
+                    # AI Button with premium styling
+                    if st.button(
+                        f"🧠 Generate AI Assessment", 
+                        type="primary",
+                        use_container_width=True,
+                        key=f"ai_assess_{selected_ticker}"
+                    ):
+                        with st.spinner("🤖 Generating AI trade narrative..."):
+                            try:
+                                import os
+                                from openai import OpenAI
                                 
-                                # Store result in session state
-                                st.session_state[f'ai_narrative_{selected_ticker}'] = ai_result
+                                openai_client = OpenAI(
+                                    api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
+                                    base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
+                                )
+                                
+                                ai_result = generate_ai_trade_narrative(
+                                    selected_ticker, 
+                                    openai_client=openai_client
+                                )
+                            except Exception as e:
+                                ai_result = generate_ai_trade_narrative(
+                                    selected_ticker, 
+                                    openai_client=None
+                                )
+                                ai_result['note'] = f"Using system analysis (AI unavailable)"
+                            
+                            st.session_state[f'ai_narrative_{selected_ticker}'] = ai_result
+                    
+                    # Display AI narrative if available
+                    ai_key = f'ai_narrative_{selected_ticker}'
+                    if ai_key in st.session_state:
+                        ai_result = st.session_state[ai_key]
+                        ai_rec = ai_result.get('recommendation', 'SKIP')
                         
-                        # Display AI narrative if available
-                        ai_key = f'ai_narrative_{selected_ticker}'
-                        if ai_key in st.session_state:
-                            ai_result = st.session_state[ai_key]
-                            
-                            # Color-coded expander based on recommendation
-                            rec_color = {
-                                'STRONG BUY': '🟢',
-                                'BUY': '🟢', 
-                                'CAUTIOUS ENTRY': '🟠',
-                                'WATCH': '🟡',
-                                'SKIP': '🔴'
-                            }.get(ai_result.get('recommendation', 'SKIP'), '⚪')
-                            
-                            with st.expander(
-                                f"{rec_color} AI Assessment: {ai_result.get('recommendation', 'N/A')} "
-                                f"(Confidence: {ai_result.get('confidence', 'N/A')})",
-                                expanded=True
-                            ):
+                        rec_colors = {
+                            'STRONG BUY': '#3FB950',
+                            'BUY': '#3FB950',
+                            'CAUTIOUS ENTRY': '#D29922',
+                            'WATCH': '#58A6FF',
+                            'SKIP': '#F85149'
+                        }
+                        ai_color = rec_colors.get(ai_rec.upper() if ai_rec else '', '#8B949E')
+                        
+                        if STYLES_AVAILABLE:
+                            st.markdown(render_ai_box(
+                                ai_result.get('narrative', 'No narrative available.'),
+                                ai_rec,
+                                ai_result.get('confidence', '')
+                            ), unsafe_allow_html=True)
+                        else:
+                            with st.expander(f"🤖 AI Assessment: {ai_rec}", expanded=True):
                                 st.markdown(format_ai_narrative_for_display(ai_result))
-                    else:
-                        st.info("🤖 AI Assessment not available. Install trade_entry_helper for full functionality.")
+                        
+                        if ai_result.get('note'):
+                            st.caption(f"*{ai_result['note']}*")
+                else:
+                    st.info("🤖 AI Assessment not available.")
         
         st.markdown("---")
         
