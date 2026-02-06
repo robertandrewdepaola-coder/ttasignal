@@ -162,6 +162,242 @@ def get_market_filter() -> Tuple[bool, bool, float, float, float]:
 LATE_ENTRY_MAX_DAYS = 5  # Maximum days after crossover to allow entry
 LATE_ENTRY_MAX_PREMIUM = 5.0  # Maximum % above crossover price to allow
 
+# =============================================================================
+# AO CONFIRMATION SIGNAL - MACD leads, AO confirms later
+# =============================================================================
+# This catches scenarios where:
+#   - MACD crossed up in the last N days (when AO was still negative)
+#   - AO just crossed positive TODAY
+#   - MACD is still bullish
+# This is a DIFFERENT signal type from the primary backtester signal
+
+AO_CONFIRM_MACD_LOOKBACK = 7  # MACD must have crossed within this many days
+AO_CONFIRM_MAX_PREMIUM = 8.0  # Max % above MACD cross price to allow
+
+
+def check_ao_confirmation_signal(ticker: str, macd_lookback: int = 7) -> Dict[str, Any]:
+    """
+    Check for AO Confirmation signal - MACD leads, AO confirms later.
+    
+    This catches the scenario where:
+    1. MACD crossed up in the last N days (when AO was still negative or barely positive)
+    2. AO just crossed from ≤0 to >0 TODAY or in the last 1-2 days
+    3. MACD is still bullish (above signal line)
+    4. Market filter passes
+    
+    This is a DIFFERENT signal type from the primary backtester signal.
+    
+    Returns dict with:
+    - is_valid: bool
+    - signal_type: 'AO_CONFIRMATION' if valid
+    - macd_cross_date: when MACD crossed
+    - macd_cross_price: price at MACD cross
+    - ao_cross_date: when AO crossed positive
+    - ao_cross_days_ago: how recent the AO cross was
+    - current_price: current price
+    - entry_premium_pct: % above MACD cross price
+    - quality: rating based on recency and premium
+    """
+    result = {
+        'is_valid': False,
+        'signal_type': None,
+        'ticker': ticker.upper(),
+        'macd_cross_date': None,
+        'macd_cross_price': 0,
+        'macd_cross_days_ago': 0,
+        'ao_at_macd_cross': 0,
+        'ao_cross_date': None,
+        'ao_cross_days_ago': 0,
+        'current_price': 0,
+        'entry_premium_pct': 0,
+        'macd_bullish': False,
+        'ao_positive': False,
+        'ao_value': 0,
+        'quality': '❌ No Signal',
+        'quality_score': 0,
+        'reason': '',
+        'recommendation': 'SKIP'
+    }
+    
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period='3mo', interval='1d')
+        
+        if hist.empty or len(hist) < 50:
+            result['reason'] = 'Insufficient data'
+            return result
+        
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = hist.columns.get_level_values(0)
+        
+        hist = calculate_macd(hist)
+        hist = calculate_ao(hist)
+        
+        i = len(hist) - 1  # Today's index
+        
+        # Current values
+        current_price = float(hist['Close'].iloc[i])
+        current_macd = float(hist['MACD'].iloc[i])
+        current_signal = float(hist['MACD_Signal'].iloc[i])
+        current_ao = float(hist['AO'].iloc[i])
+        prev_ao = float(hist['AO'].iloc[i-1]) if i > 0 else 0
+        
+        result['current_price'] = current_price
+        result['macd_bullish'] = current_macd > current_signal
+        result['ao_positive'] = current_ao > 0
+        result['ao_value'] = round(current_ao, 2)
+        
+        # Check if MACD is currently bullish
+        if not result['macd_bullish']:
+            result['reason'] = 'MACD not bullish'
+            return result
+        
+        # Check if AO is positive
+        if not result['ao_positive']:
+            result['reason'] = 'AO not positive'
+            return result
+        
+        # Find when AO crossed positive (should be recent - TODAY or last 2 days)
+        ao_cross_date = None
+        ao_cross_days_ago = None
+        
+        for j in range(3):  # Check today and last 2 days
+            check_idx = i - j
+            if check_idx < 1:
+                break
+            
+            ao_before = hist['AO'].iloc[check_idx - 1]
+            ao_after = hist['AO'].iloc[check_idx]
+            
+            if ao_before <= 0 and ao_after > 0:
+                ao_cross_date = hist.index[check_idx]
+                ao_cross_days_ago = j
+                break
+        
+        if ao_cross_date is None:
+            result['reason'] = 'AO did not cross positive recently (need within last 2 days)'
+            return result
+        
+        result['ao_cross_date'] = ao_cross_date.strftime('%Y-%m-%d') if hasattr(ao_cross_date, 'strftime') else str(ao_cross_date)
+        result['ao_cross_days_ago'] = ao_cross_days_ago
+        
+        # Find when MACD crossed up (should be within lookback period)
+        macd_cross_date = None
+        macd_cross_price = 0
+        macd_cross_days_ago = 0
+        ao_at_macd_cross = 0
+        
+        for j in range(1, macd_lookback + 1):
+            check_idx = i - j
+            if check_idx < 1:
+                break
+            
+            check_macd = hist['MACD'].iloc[check_idx]
+            check_signal = hist['MACD_Signal'].iloc[check_idx]
+            prev_macd = hist['MACD'].iloc[check_idx - 1]
+            prev_signal = hist['MACD_Signal'].iloc[check_idx - 1]
+            
+            # MACD crossed up on this day
+            if check_macd > check_signal and prev_macd <= prev_signal:
+                macd_cross_date = hist.index[check_idx]
+                macd_cross_price = float(hist['Close'].iloc[check_idx])
+                macd_cross_days_ago = j
+                ao_at_macd_cross = float(hist['AO'].iloc[check_idx])
+                break
+        
+        if macd_cross_date is None:
+            result['reason'] = f'No MACD crossover in last {macd_lookback} days'
+            return result
+        
+        # The key check: AO should have been NEGATIVE or barely positive at MACD cross
+        # This confirms this is a "MACD leads, AO confirms" scenario
+        if ao_at_macd_cross > 2:  # If AO was already solidly positive, the standard signal should have triggered
+            result['reason'] = f'AO was already positive ({ao_at_macd_cross:.1f}) at MACD cross - standard signal should apply'
+            return result
+        
+        result['macd_cross_date'] = macd_cross_date.strftime('%Y-%m-%d') if hasattr(macd_cross_date, 'strftime') else str(macd_cross_date)
+        result['macd_cross_price'] = round(macd_cross_price, 2)
+        result['macd_cross_days_ago'] = macd_cross_days_ago
+        result['ao_at_macd_cross'] = round(ao_at_macd_cross, 2)
+        
+        # Calculate entry premium
+        entry_premium = ((current_price - macd_cross_price) / macd_cross_price) * 100
+        result['entry_premium_pct'] = round(entry_premium, 2)
+        
+        # Check premium limit
+        if entry_premium > AO_CONFIRM_MAX_PREMIUM:
+            result['reason'] = f'Entry premium too high ({entry_premium:.1f}%, max {AO_CONFIRM_MAX_PREMIUM}%)'
+            return result
+        
+        # Check market filter
+        spy_above_200, vix_below_30, spy_close, spy_ma200, vix_close = get_market_filter()
+        result['spy_above_200'] = spy_above_200
+        result['vix_below_30'] = vix_below_30
+        
+        if not spy_above_200 or not vix_below_30:
+            result['reason'] = f"Market filter failed (SPY>200: {spy_above_200}, VIX<30: {vix_below_30})"
+            return result
+        
+        # VALID AO CONFIRMATION SIGNAL!
+        result['is_valid'] = True
+        result['signal_type'] = 'AO_CONFIRMATION'
+        
+        # Determine quality based on recency and premium
+        if ao_cross_days_ago == 0 and entry_premium < 3:
+            result['quality'] = '🟢 Fresh Confirm'
+            result['quality_score'] = 90
+            result['recommendation'] = 'ENTER'
+        elif ao_cross_days_ago <= 1 and entry_premium < 5:
+            result['quality'] = '🟢 Good Confirm'
+            result['quality_score'] = 80
+            result['recommendation'] = 'ENTER'
+        elif ao_cross_days_ago <= 2 and entry_premium < 8:
+            result['quality'] = '🟡 OK Confirm'
+            result['quality_score'] = 65
+            result['recommendation'] = 'ENTER WITH CAUTION'
+        else:
+            result['quality'] = '🟠 Late Confirm'
+            result['quality_score'] = 50
+            result['recommendation'] = 'SMALLER SIZE'
+        
+        result['reason'] = f"MACD crossed {macd_cross_days_ago}d ago (AO was {ao_at_macd_cross:.1f}), AO confirmed {ao_cross_days_ago}d ago"
+        
+        return result
+        
+    except Exception as e:
+        result['reason'] = f'Error: {str(e)}'
+        return result
+
+
+def format_ao_confirmation_signal(result: Dict) -> str:
+    """Format AO Confirmation signal for display."""
+    if not result.get('is_valid'):
+        return f"❌ **No AO Confirmation Signal**\n{result.get('reason', 'Unknown')}"
+    
+    lines = [
+        f"### 🔄 AO Confirmation Signal",
+        f"",
+        f"**Signal Type:** MACD leads, AO confirms later",
+        f"",
+        f"**MACD Crossover:**",
+        f"- Date: {result.get('macd_cross_date')} ({result.get('macd_cross_days_ago')} days ago)",
+        f"- Price: ${result.get('macd_cross_price', 0):.2f}",
+        f"- AO at cross: {result.get('ao_at_macd_cross', 0):.2f} (was negative/low)",
+        f"",
+        f"**AO Confirmation:**",
+        f"- Date: {result.get('ao_cross_date')} ({result.get('ao_cross_days_ago')} days ago)",
+        f"- Current AO: {result.get('ao_value', 0):.2f}",
+        f"",
+        f"**Entry:**",
+        f"- Current Price: ${result.get('current_price', 0):.2f}",
+        f"- Entry Premium: {result.get('entry_premium_pct', 0):+.1f}% vs MACD cross",
+        f"",
+        f"**Quality: {result.get('quality', 'N/A')}**",
+        f"**Recommendation: {result.get('recommendation', 'N/A')}**",
+    ]
+    
+    return "\n".join(lines)
+
 def find_recent_crossover(ticker: str, lookback_days: int = 10, entry_window: int = 20) -> Optional[Dict]:
     """
     Find the most recent VALID TTA crossover signal within lookback period.
@@ -888,9 +1124,10 @@ def calculate_quality_score(ticker: str, lookback_years: int = 3) -> Dict[str, A
 def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
     """
     Run complete analysis on a ticker:
-    1. Current entry signal validation
-    2. Weekly confirmation status
-    3. Quality score from backtest
+    1. Current entry signal validation (primary backtester signal)
+    2. AO Confirmation signal check (MACD leads, AO confirms)
+    3. Weekly confirmation status
+    4. Quality score from backtest
     
     Returns comprehensive analysis dict.
     """
@@ -899,21 +1136,29 @@ def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
         'timestamp': datetime.now().isoformat(),
         'current_price': None,
         'entry_signal': {},
+        'ao_confirmation': {},  # NEW: AO Confirmation signal
         'weekly_status': {},
         'quality': {},
         'recommendation': 'SKIP',
+        'signal_type': None,  # 'PRIMARY', 'AO_CONFIRMATION', or None
         'summary': ''
     }
     
     # Get current price
     result['current_price'] = fetch_current_price(ticker)
     
-    # Check entry conditions
+    # Check primary entry conditions (backtester signal)
     is_valid, checks = validate_entry_conditions(ticker)
     result['entry_signal'] = {
         'is_valid': is_valid,
         'checks': checks
     }
+    
+    # If primary signal is not valid, check for AO Confirmation signal
+    ao_confirm = None
+    if not is_valid:
+        ao_confirm = check_ao_confirmation_signal(ticker)
+        result['ao_confirmation'] = ao_confirm
     
     # Check weekly confirmation
     result['weekly_status'] = check_weekly_confirmation(ticker)
@@ -926,6 +1171,8 @@ def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
     weekly_bullish = result['weekly_status'].get('weekly_bullish', False)
     
     if is_valid:
+        # PRIMARY SIGNAL - backtester criteria met
+        result['signal_type'] = 'PRIMARY'
         if quality_grade in ['A', 'B'] and weekly_bullish:
             result['recommendation'] = 'STRONG BUY'
             result['summary'] = f"✅ Entry signal valid, Weekly bullish, Quality {quality_grade}"
@@ -938,7 +1185,30 @@ def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
         else:
             result['recommendation'] = 'SKIP'
             result['summary'] = f"❌ Entry signal valid but Quality {quality_grade}"
+    
+    elif ao_confirm and ao_confirm.get('is_valid'):
+        # AO CONFIRMATION SIGNAL - MACD led, AO confirmed
+        result['signal_type'] = 'AO_CONFIRMATION'
+        ao_quality = ao_confirm.get('quality_score', 0)
+        ao_rec = ao_confirm.get('recommendation', 'SKIP')
+        
+        if quality_grade in ['A', 'B'] and ao_quality >= 80:
+            if weekly_bullish:
+                result['recommendation'] = 'BUY (AO CONFIRM)'
+                result['summary'] = f"🔄 AO Confirmation signal, Weekly bullish, Quality {quality_grade}"
+            else:
+                result['recommendation'] = 'CAUTION BUY (AO CONFIRM)'
+                result['summary'] = f"🔄 AO Confirmation signal, Quality {quality_grade}, Weekly pending"
+        elif quality_grade in ['A', 'B', 'C'] and ao_quality >= 65:
+            result['recommendation'] = 'WATCH (AO CONFIRM)'
+            result['summary'] = f"🟡 AO Confirmation - {ao_confirm.get('quality', 'OK')}, Quality {quality_grade}"
+        else:
+            result['recommendation'] = 'SKIP'
+            result['summary'] = f"⚠️ AO Confirmation but weak ({ao_confirm.get('reason', '')})"
+    
     else:
+        # No signal
+        result['signal_type'] = None
         if checks.get('valid_relaxed'):
             result['recommendation'] = 'WATCH'
             result['summary'] = f"🟡 MACD bullish but no fresh cross, Quality {quality_grade}"
@@ -1042,3 +1312,339 @@ def get_exit_strategy_note() -> str:
 
 💡 Monitor Weekly MACD in your charting platform for exit signals
 """
+
+
+# =============================================================================
+# AI TRADE NARRATIVE - GPT-powered trade assessment
+# =============================================================================
+
+def build_trade_context(ticker: str) -> Dict[str, Any]:
+    """
+    Build comprehensive trade context for AI narrative.
+    Gathers all signal data, quality metrics, and market context.
+    """
+    context = {
+        'ticker': ticker.upper(),
+        'timestamp': datetime.now().isoformat(),
+        'data_available': True
+    }
+    
+    try:
+        # Get full analysis
+        analysis = analyze_ticker_full(ticker)
+        context['analysis'] = analysis
+        
+        # Current price and ATR
+        current_price = fetch_current_price(ticker)
+        atr = calculate_atr_value(ticker)
+        stop_loss, stop_type = calculate_strategy_stops(current_price, atr) if current_price else (0, 'N/A')
+        target = current_price * 1.20 if current_price else 0
+        
+        context['trade_setup'] = {
+            'current_price': current_price,
+            'atr': atr,
+            'stop_loss': stop_loss,
+            'stop_type': stop_type,
+            'target': target,
+            'risk_pct': ((current_price - stop_loss) / current_price * 100) if current_price and stop_loss else 0,
+            'reward_pct': 20.0,
+            'risk_reward': ((target - current_price) / (current_price - stop_loss)) if current_price and stop_loss and current_price > stop_loss else 0
+        }
+        
+        # Entry signal details
+        entry = analysis.get('entry_signal', {})
+        context['primary_signal'] = {
+            'is_valid': entry.get('is_valid', False),
+            'macd_cross': entry.get('checks', {}).get('daily_macd_cross', False),
+            'macd_bullish': entry.get('checks', {}).get('macd_bullish', False),
+            'ao_positive': entry.get('checks', {}).get('ao_positive', False),
+            'ao_value': entry.get('checks', {}).get('ao_value', 0),
+            'ao_recent_cross': entry.get('checks', {}).get('ao_recent_cross', False),
+            'ao_cross_days_ago': entry.get('checks', {}).get('ao_cross_days_ago'),
+        }
+        
+        # AO Confirmation signal
+        ao_confirm = analysis.get('ao_confirmation', {})
+        context['ao_confirmation'] = {
+            'is_valid': ao_confirm.get('is_valid', False),
+            'macd_cross_date': str(ao_confirm.get('macd_cross_date', '')),
+            'macd_cross_days_ago': ao_confirm.get('macd_cross_days_ago', 0),
+            'macd_cross_price': ao_confirm.get('macd_cross_price', 0),
+            'ao_at_macd_cross': ao_confirm.get('ao_at_macd_cross', 0),
+            'ao_cross_date': str(ao_confirm.get('ao_cross_date', '')),
+            'ao_cross_days_ago': ao_confirm.get('ao_cross_days_ago'),
+            'entry_premium_pct': ao_confirm.get('entry_premium_pct', 0),
+            'quality': ao_confirm.get('quality', ''),
+            'quality_score': ao_confirm.get('quality_score', 0),
+        }
+        
+        # Weekly confirmation  
+        weekly = analysis.get('weekly_status', {})
+        context['weekly'] = {
+            'bullish': weekly.get('weekly_bullish', False),
+            'signal_type': weekly.get('signal_type', 'N/A'),
+        }
+        
+        # Quality score
+        quality = analysis.get('quality', {})
+        context['quality'] = {
+            'grade': quality.get('quality_grade', 'N/A'),
+            'score': quality.get('quality_score', 0),
+            'win_rate': quality.get('win_rate', 0),
+            'avg_return': quality.get('avg_return', 0),
+            'signals_found': quality.get('signals_found', 0),
+            'best_return': quality.get('best_return', 0),
+            'worst_return': quality.get('worst_return', 0),
+        }
+        
+        # Signal type and recommendation
+        context['signal_type'] = analysis.get('signal_type')
+        context['system_recommendation'] = analysis.get('recommendation', 'SKIP')
+        context['summary'] = analysis.get('summary', '')
+        
+    except Exception as e:
+        context['data_available'] = False
+        context['error'] = str(e)
+    
+    return context
+
+
+def generate_ai_trade_narrative(ticker: str, openai_client=None) -> Dict[str, Any]:
+    """
+    Generate an AI-powered trade narrative using OpenAI.
+    
+    Args:
+        ticker: Stock ticker to analyze
+        openai_client: OpenAI client instance (from app.py)
+    
+    Returns:
+        Dict with narrative, recommendation, and metadata
+    """
+    result = {
+        'ticker': ticker.upper(),
+        'narrative': '',
+        'recommendation': '',
+        'confidence': '',
+        'key_factors': [],
+        'concerns': [],
+        'success': False,
+        'error': None
+    }
+    
+    # Build context
+    context = build_trade_context(ticker)
+    
+    if not context.get('data_available'):
+        result['error'] = context.get('error', 'Failed to fetch trade data')
+        return result
+    
+    # Create the prompt
+    prompt = f"""You are a professional trade analyst providing a concise trade assessment for the TTA (Trend Trading with AO) strategy.
+
+TICKER: {context['ticker']}
+
+CURRENT SIGNAL DATA:
+- Signal Type: {context['signal_type']}
+- System Recommendation: {context['system_recommendation']}
+
+PRIMARY SIGNAL (Strict Backtester):
+- Valid: {context['primary_signal']['is_valid']}
+- MACD Cross Today: {context['primary_signal']['macd_cross']}
+- MACD Bullish: {context['primary_signal']['macd_bullish']}
+- AO Positive: {context['primary_signal']['ao_positive']} (Value: {context['primary_signal']['ao_value']:.2f})
+- AO Recent Cross: {context['primary_signal']['ao_recent_cross']} ({context['primary_signal']['ao_cross_days_ago']} days ago)
+
+AO CONFIRMATION SIGNAL (MACD leads, AO confirms):
+- Valid: {context['ao_confirmation']['is_valid']}
+- MACD Crossed: {context['ao_confirmation']['macd_cross_date']} ({context['ao_confirmation']['macd_cross_days_ago']} days ago)
+- MACD Cross Price: ${context['ao_confirmation']['macd_cross_price']:.2f}
+- AO at MACD Cross: {context['ao_confirmation']['ao_at_macd_cross']:.2f}
+- AO Confirmed: {context['ao_confirmation']['ao_cross_date']} ({context['ao_confirmation']['ao_cross_days_ago']} days ago)
+- Entry Premium: {context['ao_confirmation']['entry_premium_pct']:+.1f}%
+- Quality: {context['ao_confirmation']['quality']}
+
+WEEKLY CONFIRMATION:
+- Weekly MACD Bullish: {context['weekly']['bullish']}
+- Signal Type: {context['weekly']['signal_type']}
+
+QUALITY SCORE (Historical Backtest):
+- Grade: {context['quality']['grade']}
+- Score: {context['quality']['score']}/100
+- Win Rate: {context['quality']['win_rate']:.0f}%
+- Avg Return: {context['quality']['avg_return']:+.1f}%
+- Historical Signals: {context['quality']['signals_found']}
+
+TRADE SETUP:
+- Current Price: ${context['trade_setup']['current_price']:.2f}
+- Stop Loss ({context['trade_setup']['stop_type']}): ${context['trade_setup']['stop_loss']:.2f} ({context['trade_setup']['risk_pct']:.1f}% risk)
+- Target (20%): ${context['trade_setup']['target']:.2f}
+- ATR(14): ${context['trade_setup']['atr']:.2f}
+- Risk/Reward: 1:{context['trade_setup']['risk_reward']:.1f}
+
+Please provide a trade narrative with:
+1. A 2-3 sentence SUMMARY of the setup
+2. YOUR RECOMMENDATION: One of [STRONG BUY, BUY, CAUTIOUS ENTRY, WATCH, SKIP]
+3. CONFIDENCE: One of [HIGH, MEDIUM, LOW]
+4. KEY FACTORS (2-3 bullet points supporting the trade)
+5. CONCERNS (1-3 bullet points of risks/cautions)
+6. POSITION SIZE GUIDANCE (based on conviction level)
+
+Keep the response concise and actionable. Be honest about risks.
+Format your response with clear headers."""
+
+    if openai_client is None:
+        # Return a structured assessment without AI
+        result['narrative'] = _generate_fallback_narrative(context)
+        result['recommendation'] = context['system_recommendation']
+        result['confidence'] = 'MEDIUM'
+        result['success'] = True
+        result['note'] = 'Generated without AI (no OpenAI client provided)'
+        return result
+    
+    try:
+        # Call OpenAI
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",  # Use a cost-effective model
+            messages=[
+                {"role": "system", "content": "You are a professional trade analyst. Be concise, honest, and actionable."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=800,
+            temperature=0.7
+        )
+        
+        narrative = response.choices[0].message.content
+        result['narrative'] = narrative
+        result['success'] = True
+        
+        # Parse recommendation from narrative if possible
+        if 'STRONG BUY' in narrative.upper():
+            result['recommendation'] = 'STRONG BUY'
+            result['confidence'] = 'HIGH'
+        elif 'CAUTIOUS ENTRY' in narrative.upper():
+            result['recommendation'] = 'CAUTIOUS ENTRY'
+            result['confidence'] = 'MEDIUM'
+        elif 'BUY' in narrative.upper() and 'SKIP' not in narrative.upper():
+            result['recommendation'] = 'BUY'
+            result['confidence'] = 'MEDIUM'
+        elif 'WATCH' in narrative.upper():
+            result['recommendation'] = 'WATCH'
+            result['confidence'] = 'LOW'
+        else:
+            result['recommendation'] = 'SKIP'
+            result['confidence'] = 'LOW'
+            
+    except Exception as e:
+        result['error'] = str(e)
+        result['narrative'] = _generate_fallback_narrative(context)
+        result['recommendation'] = context['system_recommendation']
+        result['success'] = True
+        result['note'] = f'AI unavailable, using system analysis: {str(e)[:50]}'
+    
+    return result
+
+
+def _generate_fallback_narrative(context: Dict) -> str:
+    """Generate a narrative without AI based on the context data."""
+    ticker = context['ticker']
+    signal_type = context['signal_type']
+    rec = context['system_recommendation']
+    
+    # Build narrative
+    lines = []
+    lines.append(f"## 📊 Trade Assessment: {ticker}")
+    lines.append("")
+    
+    # Summary based on signal type
+    if signal_type == 'PRIMARY':
+        lines.append(f"**Signal:** ✅ PRIMARY (Backtester confirmed)")
+        lines.append(f"MACD crossed up today with AO positive - this is the standard TTA entry signal.")
+    elif signal_type == 'AO_CONFIRMATION':
+        ao = context['ao_confirmation']
+        lines.append(f"**Signal:** 🔄 AO CONFIRMATION (MACD led, AO confirmed)")
+        lines.append(f"MACD crossed {ao['macd_cross_days_ago']} days ago at ${ao['macd_cross_price']:.2f}. ")
+        lines.append(f"AO just confirmed positive {ao['ao_cross_days_ago']} day(s) ago.")
+        lines.append(f"Entry premium: {ao['entry_premium_pct']:+.1f}%")
+    else:
+        lines.append(f"**Signal:** ❌ No valid entry signal")
+        lines.append(f"Neither PRIMARY nor AO CONFIRMATION criteria met.")
+    
+    lines.append("")
+    lines.append(f"**Recommendation:** {rec}")
+    
+    # Weekly status
+    lines.append("")
+    weekly = "🟢 Bullish (Re-Entry)" if context['weekly']['bullish'] else "🔴 Bearish (New Wave)"
+    lines.append(f"**Weekly MACD:** {weekly}")
+    
+    # Quality
+    q = context['quality']
+    lines.append("")
+    lines.append(f"**Quality:** Grade {q['grade']} ({q['win_rate']:.0f}% win rate, {q['avg_return']:+.1f}% avg return)")
+    
+    # Trade setup
+    ts = context['trade_setup']
+    lines.append("")
+    lines.append(f"**Trade Setup:**")
+    lines.append(f"- Entry: ${ts['current_price']:.2f}")
+    lines.append(f"- Stop: ${ts['stop_loss']:.2f} ({ts['risk_pct']:.1f}% risk)")
+    lines.append(f"- Target: ${ts['target']:.2f} (20% gain)")
+    lines.append(f"- R:R = 1:{ts['risk_reward']:.1f}")
+    
+    # Key factors and concerns
+    lines.append("")
+    lines.append("**Key Factors:**")
+    if context['primary_signal']['is_valid'] or context['ao_confirmation']['is_valid']:
+        lines.append("- ✅ Valid entry signal")
+    if q['grade'] in ['A', 'B']:
+        lines.append(f"- ✅ Good quality (Grade {q['grade']})")
+    if context['weekly']['bullish']:
+        lines.append("- ✅ Weekly trend confirmed")
+    
+    lines.append("")
+    lines.append("**Concerns:**")
+    if context['ao_confirmation']['entry_premium_pct'] > 5:
+        lines.append(f"- ⚠️ High entry premium ({context['ao_confirmation']['entry_premium_pct']:+.1f}%)")
+    if not context['weekly']['bullish']:
+        lines.append("- ⚠️ Weekly MACD bearish - New Wave bet")
+    if q['grade'] not in ['A', 'B']:
+        lines.append(f"- ⚠️ Quality grade {q['grade']}")
+    
+    return "\n".join(lines)
+
+
+def format_ai_narrative_for_display(result: Dict) -> str:
+    """Format AI narrative result for Streamlit display."""
+    if result.get('error') and not result.get('success'):
+        return f"❌ **Error:** {result['error']}"
+    
+    lines = []
+    
+    # Header
+    lines.append(f"## 🤖 AI Trade Assessment: {result['ticker']}")
+    lines.append("")
+    
+    # Recommendation badge
+    rec = result.get('recommendation', 'SKIP')
+    conf = result.get('confidence', 'LOW')
+    
+    rec_emoji = {
+        'STRONG BUY': '🟢',
+        'BUY': '🟢',
+        'CAUTIOUS ENTRY': '🟠',
+        'WATCH': '🟡',
+        'SKIP': '🔴'
+    }.get(rec, '⚪')
+    
+    lines.append(f"### {rec_emoji} {rec} (Confidence: {conf})")
+    lines.append("")
+    
+    # Narrative
+    lines.append(result.get('narrative', 'No narrative available.'))
+    
+    # Note if fallback was used
+    if result.get('note'):
+        lines.append("")
+        lines.append(f"*{result['note']}*")
+    
+    return "\n".join(lines)

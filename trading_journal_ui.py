@@ -41,13 +41,23 @@ try:
         check_late_entry_conditions,
         get_late_entry_analysis,
         format_late_entry_status,
-        LATE_ENTRY_MAX_DAYS
+        LATE_ENTRY_MAX_DAYS,
+        # AO Confirmation signal
+        check_ao_confirmation_signal,
+        format_ao_confirmation_signal,
+        # AI Trade Narrative (NEW)
+        generate_ai_trade_narrative,
+        format_ai_narrative_for_display
     )
     HELPER_AVAILABLE = True
     LATE_ENTRY_AVAILABLE = True
+    AO_CONFIRM_AVAILABLE = True
+    AI_NARRATIVE_AVAILABLE = True
 except ImportError as e:
     HELPER_AVAILABLE = False
     LATE_ENTRY_AVAILABLE = False
+    AO_CONFIRM_AVAILABLE = False
+    AI_NARRATIVE_AVAILABLE = False
     HELPER_IMPORT_ERROR = str(e)
     
     # Provide fallback functions if trade_entry_helper not available
@@ -499,14 +509,25 @@ def render_watchlist_tab(journal):
                             days = late_analysis['late_entry'].get('days_since_cross', 0)
                             late_entry_status = f"🕐 +{days}d"
                     
+                    # AO Confirmation check (NEW)
+                    ao_confirm_status = ""
+                    ao_confirm_data = analysis.get('ao_confirmation', {})
+                    if ao_confirm_data.get('is_valid'):
+                        ao_confirm_status = ao_confirm_data.get('quality', '🔄 Confirm')
+                    
                     # Grade emoji
                     grade_emoji = {'A': '🏆', 'B': '✅', 'C': '⚠️', 'F': '❌', 'N/A': '❓'}.get(grade, '❓')
                     
-                    # Status determination (now includes late entry)
+                    # Status determination (now includes late entry AND AO Confirmation)
                     if is_valid and grade in ['A', 'B']:
                         status = '🟢 READY'
                     elif is_valid and grade == 'C':
                         status = '🟡 CAUTION'
+                    elif ao_confirm_data.get('is_valid') and grade in ['A', 'B']:
+                        # AO Confirmation signal - MACD crossed earlier, AO just confirmed
+                        status = '🔄 AO CONFIRM'
+                    elif ao_confirm_data.get('is_valid'):
+                        status = '🟡 AO CONFIRM'
                     elif late_entry_status:
                         status = f'🕐 LATE OK'
                     elif checks.get('valid_relaxed') and grade in ['A', 'B']:
@@ -518,6 +539,7 @@ def render_watchlist_tab(journal):
                         'Ticker': ticker,
                         'Status': status,
                         'Late': late_entry_status,
+                        'AO Confirm': ao_confirm_status,
                         'Grade': f"{grade_emoji} {grade}",
                         'Score': score,
                         'Win%': f"{win_rate:.0f}%",
@@ -531,7 +553,8 @@ def render_watchlist_tab(journal):
                         'Mkt OK': '✅' if (checks.get('spy_above_200') and checks.get('vix_below_30')) else '❌',
                         'Recommendation': analysis.get('recommendation', 'SKIP'),
                         '_grade': grade,
-                        '_score': score
+                        '_score': score,
+                        '_ao_confirm': ao_confirm_data
                     })
                     
                 except Exception as e:
@@ -647,9 +670,10 @@ def render_watchlist_tab(journal):
             
             # Separate by status
             ready = df[df['Status'].str.contains('READY')]
+            ao_confirm = df[df['Status'].str.contains('AO CONFIRM')]  # NEW
             late_ok = df[df['Status'].str.contains('LATE')]
-            watch = df[df['Status'].str.contains('WATCH|CAUTION')]
-            skip = df[~df['Status'].str.contains('READY|WATCH|CAUTION|LATE')]
+            watch = df[df['Status'].str.contains('WATCH|CAUTION') & ~df['Status'].str.contains('AO CONFIRM')]
+            skip = df[~df['Status'].str.contains('READY|WATCH|CAUTION|LATE|AO CONFIRM')]
             
             # Identify high-quality tickers waiting for signals (Grade A/B but skipped)
             quality_waiting = skip[skip['_grade'].isin(['A', 'B'])]
@@ -659,6 +683,7 @@ def render_watchlist_tab(journal):
             st.markdown(f"""
             ### Scan Results
             - 🟢 **Ready to Trade:** {len(ready)}
+            - 🔄 **AO Confirmation:** {len(ao_confirm)} *(MACD led, AO confirmed)*
             - 🕐 **Late Entry OK:** {len(late_ok)}
             - 🟡 **Watch/Caution:** {len(watch)}
             - ⏳ **Quality Waiting:** {len(quality_waiting)} *(Grade A/B, no signal yet)*
@@ -682,6 +707,44 @@ def render_watchlist_tab(journal):
                     - **Consider:** Smaller position size or wait for Weekly confirmation
                     - **Watch for:** Weekly MACD to cross bullish for full confirmation
                     """)
+            
+            # AO Confirmation tickers (NEW SECTION)
+            if len(ao_confirm) > 0:
+                st.info(f"**🔄 AO Confirmation Signal:** {', '.join(ao_confirm['Ticker'].tolist())}")
+                display_cols = ['Ticker', 'Status', 'AO Confirm', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
+                st.dataframe(ao_confirm[display_cols], use_container_width=True, hide_index=True)
+                
+                st.markdown("""
+                💡 **AO Confirmation Signal:** MACD crossed up earlier (when AO was negative), 
+                and AO has now confirmed by crossing positive. This is a valid entry pattern 
+                where MACD leads and AO confirms the move.
+                """)
+                
+                # Show details for each AO Confirm ticker
+                for _, row in ao_confirm.iterrows():
+                    ao_data = row.get('_ao_confirm', {})
+                    if ao_data:
+                        with st.expander(f"📊 {row['Ticker']} - AO Confirmation Details"):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown(f"""
+                                **MACD Crossover:**
+                                - Date: {ao_data.get('macd_cross_date', 'N/A')} ({ao_data.get('macd_cross_days_ago', 0)} days ago)
+                                - Price: ${ao_data.get('macd_cross_price', 0):.2f}
+                                - AO at cross: {ao_data.get('ao_at_macd_cross', 0):.2f}
+                                """)
+                            with col2:
+                                st.markdown(f"""
+                                **Current Status:**
+                                - Current Price: ${ao_data.get('current_price', 0):.2f}
+                                - Entry Premium: {ao_data.get('entry_premium_pct', 0):+.1f}%
+                                - Recommendation: {ao_data.get('recommendation', 'N/A')}
+                                """)
+                
+                # Weekly warning for AO Confirm
+                ao_weekly_bearish = ao_confirm[ao_confirm['Weekly'] == '🔴']
+                if len(ao_weekly_bearish) > 0:
+                    st.warning(f"⚠️ **{', '.join(ao_weekly_bearish['Ticker'].tolist())}** - AO Confirmation + Weekly bearish = Enter with smaller size")
             
             # Late entry tickers - with Weekly warning
             if len(late_ok) > 0:
@@ -787,6 +850,74 @@ def render_watchlist_tab(journal):
                         st.warning(f"**{rec}**: {summary}")
                     else:
                         st.error(f"**{rec}**: {summary}")
+                    
+                    # ═══════════════════════════════════════════════════════════
+                    # AI TRADE ASSESSMENT - GPT-powered narrative
+                    # ═══════════════════════════════════════════════════════════
+                    st.markdown("---")
+                    st.markdown("### 🤖 AI Trade Assessment")
+                    
+                    if AI_NARRATIVE_AVAILABLE:
+                        col_ai1, col_ai2 = st.columns([2, 1])
+                        with col_ai1:
+                            ai_btn = st.button(
+                                f"🧠 Get AI Assessment for {selected_ticker}", 
+                                type="secondary",
+                                use_container_width=True,
+                                key=f"ai_assess_{selected_ticker}"
+                            )
+                        with col_ai2:
+                            st.caption("Powered by GPT-4o-mini")
+                        
+                        if ai_btn:
+                            with st.spinner("🤖 Generating AI trade narrative..."):
+                                # Try to get OpenAI client from app.py
+                                try:
+                                    import os
+                                    from openai import OpenAI
+                                    
+                                    openai_client = OpenAI(
+                                        api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
+                                        base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
+                                    )
+                                    
+                                    ai_result = generate_ai_trade_narrative(
+                                        selected_ticker, 
+                                        openai_client=openai_client
+                                    )
+                                except Exception as e:
+                                    # Fall back to system-generated narrative
+                                    ai_result = generate_ai_trade_narrative(
+                                        selected_ticker, 
+                                        openai_client=None
+                                    )
+                                    ai_result['note'] = f"Using system analysis (AI unavailable: {str(e)[:30]})"
+                                
+                                # Store result in session state
+                                st.session_state[f'ai_narrative_{selected_ticker}'] = ai_result
+                        
+                        # Display AI narrative if available
+                        ai_key = f'ai_narrative_{selected_ticker}'
+                        if ai_key in st.session_state:
+                            ai_result = st.session_state[ai_key]
+                            
+                            # Color-coded expander based on recommendation
+                            rec_color = {
+                                'STRONG BUY': '🟢',
+                                'BUY': '🟢', 
+                                'CAUTIOUS ENTRY': '🟠',
+                                'WATCH': '🟡',
+                                'SKIP': '🔴'
+                            }.get(ai_result.get('recommendation', 'SKIP'), '⚪')
+                            
+                            with st.expander(
+                                f"{rec_color} AI Assessment: {ai_result.get('recommendation', 'N/A')} "
+                                f"(Confidence: {ai_result.get('confidence', 'N/A')})",
+                                expanded=True
+                            ):
+                                st.markdown(format_ai_narrative_for_display(ai_result))
+                    else:
+                        st.info("🤖 AI Assessment not available. Install trade_entry_helper for full functionality.")
         
         st.markdown("---")
         
