@@ -674,7 +674,7 @@ def render_watchlist_tab(journal):
             
             # AO Confirmation tickers (NEW SECTION)
             if len(ao_confirm) > 0:
-                st.info(f"**🔄 AO Confirmation Signal:** {', '.join(ao_confirm['Ticker'].tolist())}")
+                st.info(f"**AO Confirmation Signal:** {', '.join(ao_confirm['Ticker'].tolist())}")
                 display_cols = ['Ticker', 'Status', 'AO Confirm', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
                 st.dataframe(ao_confirm[display_cols], use_container_width=True, hide_index=True)
                 
@@ -688,7 +688,7 @@ def render_watchlist_tab(journal):
                 for _, row in ao_confirm.iterrows():
                     ao_data = row.get('_ao_confirm', {})
                     if ao_data:
-                        with st.expander(f"📈 {row['Ticker']} Details", expanded=False):
+                        with st.expander(f"{row['Ticker']} - AO Confirm Details", expanded=False):
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.markdown(f"""
@@ -712,7 +712,7 @@ def render_watchlist_tab(journal):
             
             # Late entry tickers - with Weekly warning
             if len(late_ok) > 0:
-                st.info(f"**🕐 Late Entry Available:** {', '.join(late_ok['Ticker'].tolist())}")
+                st.info(f"**Late Entry Available:** {', '.join(late_ok['Ticker'].tolist())}")
                 display_cols = ['Ticker', 'Status', 'Late', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
                 st.dataframe(late_ok[display_cols], use_container_width=True, hide_index=True)
                 st.caption("💡 These tickers had a valid signal recently and are still within the entry window")
