@@ -16,7 +16,144 @@ TTA_CUSTOM_CSS = """
     /* Import Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* Root variables */
+    /* ═══════════════════════════════════════════════════════════════════════
+       AGGRESSIVE STREAMLIT OVERRIDES - Force our styles
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    /* Primary action buttons - Green gradient */
+    .stButton > button[kind="primary"],
+    .stButton > button[data-testid="baseButton-primary"],
+    button[kind="primary"],
+    .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #238636 0%, #2EA043 100%) !important;
+        background-color: #238636 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 0.5rem 1.5rem !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 8px rgba(35, 134, 54, 0.3) !important;
+    }
+    
+    .stButton > button[kind="primary"]:hover,
+    .stButton > button[data-testid="baseButton-primary"]:hover,
+    .stFormSubmitButton > button:hover {
+        background: linear-gradient(135deg, #2EA043 0%, #3FB950 100%) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(46, 160, 67, 0.4) !important;
+    }
+    
+    /* Secondary buttons - Outline style */
+    .stButton > button[kind="secondary"],
+    .stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]) {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #58A6FF !important;
+        border: 1px solid #30363D !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+    }
+    
+    .stButton > button[kind="secondary"]:hover,
+    .stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]):hover {
+        background: rgba(88, 166, 255, 0.1) !important;
+        border-color: #58A6FF !important;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        background: transparent !important;
+        gap: 0 !important;
+        border-bottom: 1px solid #30363D !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        color: #8B949E !important;
+        background: transparent !important;
+        border-radius: 0 !important;
+        padding: 12px 20px !important;
+        font-weight: 500 !important;
+        border-bottom: 2px solid transparent !important;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #F0F6FC !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #58A6FF !important;
+        border-bottom: 2px solid #58A6FF !important;
+        background: transparent !important;
+    }
+    
+    /* Form inputs */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stNumberInput > div > div > input {
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 6px !important;
+        color: #F0F6FC !important;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #58A6FF !important;
+        box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15) !important;
+    }
+    
+    /* Selectbox */
+    .stSelectbox > div > div {
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Caption styling - make it visible */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        color: #8B949E !important;
+    }
+    
+    /* Version badge styling */
+    [data-testid="stCaptionContainer"] p {
+        color: #58A6FF !important;
+        background: rgba(88, 166, 255, 0.1) !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        display: inline-block !important;
+        font-size: 12px !important;
+        border: 1px solid rgba(88, 166, 255, 0.3) !important;
+    }
+    
+    /* Expanders */
+    .stExpander {
+        border: 1px solid #30363D !important;
+        border-radius: 8px !important;
+        background: #161B22 !important;
+    }
+    
+    /* DataFrames */
+    .stDataFrame {
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+    
+    .stDataFrame [data-testid="stDataFrameContainer"] {
+        background: #161B22 !important;
+    }
+    
+    /* Info/Success/Warning/Error boxes */
+    .stAlert {
+        border-radius: 8px !important;
+    }
+    
+    /* Hide Streamlit branding for cleaner look */
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    
+    /* Root variables - for our custom components */
     :root {
         --bg-primary: #0D1117;
         --bg-secondary: #161B22;
@@ -48,10 +185,11 @@ TTA_CUSTOM_CSS = """
         --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
     }
     
-    /* Base styles */
-    .stApp {
+    /* Base font */
+    .stApp, .stApp * {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
+    
     
     /* ═══════════════════════════════════════════════════════════════════════
        SIGNAL STATUS CARDS - Clean modular design
