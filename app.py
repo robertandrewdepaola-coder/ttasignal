@@ -15,7 +15,7 @@ import os
 import base64
 import re
 import io
-from openai import OpenAI
+# OpenAI removed — using Gemini for AI analysis
 from utils.react_bridge import render_react_dashboard, parse_analysis_for_dashboard, enforce_v71_narrative_hygiene, enforce_verdict_consistency, validate_fib_numeric_sanity
 from trading_journal_ui import render_trading_journal_tab, add_journal_to_sidebar
 from strategy_break_retest import get_current_pattern_state, classify_weinstein_stage
@@ -38,16 +38,25 @@ def load_daily_verdicts() -> list:
     verdicts = []
     today = datetime.now().strftime('%Y%m%d')
     
-    for file in os.listdir('.'):
+    try:
+        files = os.listdir('.')
+    except OSError:
+        return []
+    
+    for file in files:
         if '_tta_verdict.json' in file:
             try:
                 with open(file, 'r') as f:
                     data = json.load(f)
                     verdicts.append(data)
-            except:
-                pass
+            except (json.JSONDecodeError, IOError, KeyError) as e:
+                print(f"TTA: Warning - Could not load verdict {file}: {e}")
     
-    return sorted(verdicts, key=lambda x: x['timestamp'], reverse=True)
+    # Safe sort - handle missing timestamp key
+    try:
+        return sorted(verdicts, key=lambda x: x.get('timestamp', ''), reverse=True)
+    except Exception:
+        return verdicts
 
 
 def display_daily_summary():
@@ -416,15 +425,9 @@ def get_execution_authority(execution_mode: str) -> str:
     return EXECUTION_LABELS["DAILY"]
 
 
-# Initialize OpenAI client only if API key is available
-_openai_api_key = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-if _openai_api_key:
-    client = OpenAI(
-        api_key=_openai_api_key,
-        base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
-    )
-else:
-    client = None  # OpenAI not configured - will use Gemini or system analysis
+# AI client: Gemini is primary (via gemini_auditor.py)
+# OpenAI removed — set client to None for any legacy references
+client = None
 
 SYSTEM_PROMPT = """✅ MASTER RISK-FIRST CHART AUDIT PROMPT — v7.1 (LOGIC-STRICT EDITION)
 DEGREE-LOCKED • STRUCTURE-FIRST • MOMENTUM-CONFIRMED • FIB-CONTEXTUALIZED (Weinstein + Elliott Wave + Awesome Oscillator + Fibonacci — AUDIT ONLY)
@@ -954,8 +957,13 @@ def detect_up_fractal(high_series):
 
 def detect_macd_bearish_cross(macd_line, signal_line):
     """
-    Detect if MACD has crossed down below signal line.
-    Returns True if bearish cross occurred recently (within last 3 bars).
+    Detect if MACD is bearish (below signal line) within the last 3 bars.
+    
+    NOTE: Despite the name, this checks if MACD is BELOW signal (bearish state),
+    not specifically for a crossover event. This is intentional for traffic light
+    logic where we want to detect bearish conditions, not just the cross moment.
+    
+    For actual crossover detection, use macd_bearish_cross() instead.
     
     v16.9: Used to confirm AO weakness before showing yellow dot.
     """
@@ -965,13 +973,12 @@ def detect_macd_bearish_cross(macd_line, signal_line):
     if len(macd_line) < 2 or len(signal_line) < 2:
         return False
     
-    # Check last 3 bars for cross (allows slight lag tolerance)
+    # Check last 3 bars for MACD below signal (bearish state)
     for i in range(min(3, len(macd_line))):
         idx = -(i + 1)
         current_macd = macd_line.iloc[idx] if hasattr(macd_line, 'iloc') else macd_line[idx]
         current_signal = signal_line.iloc[idx] if hasattr(signal_line, 'iloc') else signal_line[idx]
         
-        # If MACD below signal, cross detected
         if current_macd < current_signal:
             return True
     
@@ -9894,98 +9901,6 @@ with col1:
                     mime="text/plain"
                 )
 
-
-def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, timeframe: str, sma_context: str, analysis_id: str, mtf_charts: dict = None) -> str:
-    """
-    Perform Chart Audit using Google Gemini 1.5 Flash (Vision).
-    Outputs HTML directly with Mometic-style design.
-    """
-    import os
-    import google.generativeai as genai
-    from google.generativeai.types import HarmCategory, HarmBlockThreshold
-    
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    
-    if not api_key:
-        return """<div style='background:#3d1418; padding:15px; border-radius:8px; border:1px solid #f85149; color:#f85149'>
-        ⚠️ <b>Google AI Not Configured</b><br>
-        Please add <code>GOOGLE_API_KEY</code> to Streamlit secrets.
-        </div>"""
-        
-    try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        content_parts = []
-        
-        # Helper for images
-        def get_image_part(b64):
-            return {'mime_type': 'image/png', 'data': b64}
-
-        # SYSTEM PROMPT
-        content_parts.append(SYSTEM_PROMPT + "\n\nSTRICT RULE: Focus on RISK assessment first. Be critical.")
-        
-        if mtf_charts and all(k in mtf_charts for k in ['monthly', 'weekly', 'daily', 'h4']):
-            # MTF Mode
-            content_parts.append(f"=== TOP-DOWN ANALYSIS FOR {ticker} ===\n{sma_context}\nAnalyze 4 charts (Monthly->Weekly->Daily->4H).")
-            content_parts.append("MONTHLY (Primary):")
-            content_parts.append(get_image_part(mtf_charts['monthly']))
-            content_parts.append("WEEKLY (Intermediate):")
-            content_parts.append(get_image_part(mtf_charts['weekly']))
-            content_parts.append("DAILY (Minor):")
-            content_parts.append(get_image_part(mtf_charts['daily']))
-            content_parts.append("4-HOUR (Minuette):")
-            content_parts.append(get_image_part(mtf_charts['h4']))
-        else:
-            # Single Chart Mode
-            content_parts.append(f"=== ANALYSIS FOR {ticker} ({timeframe}) ===\n{sma_context}")
-            content_parts.append(get_image_part(chart_base64))
-            
-        content_parts.append(f"Pivot Data:\n{pivot_text}")
-        content_parts.append("""
-        OUTPUT FORMAT (HTML):
-        Provide a clean, structured analysis.
-        Start with <div class="gemini-analysis">
-        Use <h3> for headers.
-        Use <ul> for lists.
-        End with </div>
-        
-        Sections:
-        1. Executive Summary
-        2. Wave Count & Structure
-        3. Risk/Reward
-        4. Verdict (PASS/FAIL)
-        """)
-        
-        response = model.generate_content(
-            content_parts,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.2,
-                max_output_tokens=2000,
-            )
-        )
-        
-        # Style the output
-        result_html = f"""
-        <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 25px; color: #E6EDF3; font-family: 'Inter', sans-serif;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #30363D; padding-bottom: 15px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 1.5em;">⚡</span>
-                    <h3 style="margin: 0; color: #58A6FF; font-weight: 600;">AI Chart Audit</h3>
-                </div>
-                <span style="background-color: #1F6FEB; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em;">Gemini 1.5 Flash</span>
-            </div>
-            
-            <div style="font-size: 1.05em; line-height: 1.6; color: #C9D1D9;">
-                {response.text.replace('', '')}
-            </div>
-            
-            <div style="margin-top: 25px; padding-top: 12px; border-top: 1px solid #21262D; font-size: 0.8em; color: #8B949E; text-align: right;">
-                ID: {analysis_id.split('_')[-1]}
-            </div>
-        </div>
-        """
-        return result_html
-
-    except Exception as e:
-        return f"<div style='color:red'>AI Error: {str(e)}</div>"
+# ═══════════════════════════════════════════════════════════════════════════════
+# END OF APP - AI Chart Audit is handled by gemini_auditor.py
+# ═══════════════════════════════════════════════════════════════════════════════
