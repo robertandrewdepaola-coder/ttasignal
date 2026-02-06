@@ -273,9 +273,51 @@ TTA_CUSTOM_CSS = """
         font-weight: 600 !important;
     }
     
-    /* Info/Warning boxes text */
-    .stAlert p, [data-testid="stAlert"] p {
-        color: #1F2328 !important;
+    /* Info/Warning boxes - Complete override for readability */
+    /* Warning - Yellow/Amber theme */
+    [data-testid="stAlert"][data-baseweb="notification"][kind="warning"],
+    .stAlert > div[role="alert"],
+    div[data-testid="stNotificationContentWarning"] {
+        background-color: #FEF3CD !important;
+        border: 1px solid #FFCA2C !important;
+        border-left: 4px solid #FFCA2C !important;
+    }
+    
+    [data-testid="stNotificationContentWarning"] p,
+    .stAlert[kind="warning"] p,
+    div[data-baseweb="notification"] p {
+        color: #664D03 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Info - Blue theme */
+    [data-testid="stNotificationContentInfo"] {
+        background-color: #CFE2FF !important;
+        border-left: 4px solid #0D6EFD !important;
+    }
+    
+    [data-testid="stNotificationContentInfo"] p {
+        color: #084298 !important;
+    }
+    
+    /* Success - Green theme */
+    [data-testid="stNotificationContentSuccess"] {
+        background-color: #D1E7DD !important;
+        border-left: 4px solid #198754 !important;
+    }
+    
+    [data-testid="stNotificationContentSuccess"] p {
+        color: #0F5132 !important;
+    }
+    
+    /* Error - Red theme */
+    [data-testid="stNotificationContentError"] {
+        background-color: #F8D7DA !important;
+        border-left: 4px solid #DC3545 !important;
+    }
+    
+    [data-testid="stNotificationContentError"] p {
+        color: #842029 !important;
     }
     
     /* Bullet points and lists */
@@ -283,8 +325,16 @@ TTA_CUSTOM_CSS = """
         color: #E6EDF3 !important;
     }
     
-    /* Expander headers */
-    .stExpander summary, [data-testid="stExpander"] summary {
+    /* Expander headers - clean styling */
+    .stExpander, [data-testid="stExpander"] {
+        background: #161B22 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 8px !important;
+    }
+    
+    .stExpander summary, [data-testid="stExpander"] summary,
+    .stExpander [data-testid="stExpanderToggleIcon"],
+    .stExpander span {
         color: #FFFFFF !important;
     }
     

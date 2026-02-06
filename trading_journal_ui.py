@@ -300,7 +300,13 @@ def render_watchlist_tab(journal):
         - 🕐 **Late Entry** - Find recent signals still within entry window
         """)
         
-        col_scan1, col_scan2, col_scan3, col_scan4 = st.columns([2, 1, 1, 1])
+        # Min Grade filter on its own line for cleaner layout
+        col_grade, col_spacer = st.columns([1, 3])
+        with col_grade:
+            min_grade = st.selectbox("Min Grade Filter", options=['Any', 'C+', 'B+', 'A'], index=0, label_visibility="visible")
+        
+        # Scan buttons row
+        col_scan1, col_scan2, col_scan3 = st.columns([2, 1, 1])
         with col_scan1:
             if st.button("🔍 Full Scan", type="primary", use_container_width=True):
                 st.session_state['run_full_scan'] = True
@@ -315,9 +321,6 @@ def render_watchlist_tab(journal):
             if st.button("🕐 Late Entry", use_container_width=True):
                 st.session_state['run_late_entry_scan'] = True
                 st.rerun()
-        
-        with col_scan4:
-            min_grade = st.selectbox("Min Grade", options=['Any', 'C+', 'B+', 'A'], index=0)
         
         # ═══════════════════════════════════════════════════════════════════════
         # LATE ENTRY SCAN - Find recent crossovers still valid
@@ -685,7 +688,7 @@ def render_watchlist_tab(journal):
                 for _, row in ao_confirm.iterrows():
                     ao_data = row.get('_ao_confirm', {})
                     if ao_data:
-                        with st.expander(f"📊 {row['Ticker']} - AO Confirmation Details"):
+                        with st.expander(f"📈 {row['Ticker']} Details", expanded=False):
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.markdown(f"""
