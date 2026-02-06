@@ -416,10 +416,15 @@ def get_execution_authority(execution_mode: str) -> str:
     return EXECUTION_LABELS["DAILY"]
 
 
-client = OpenAI(
-    api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
-    base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
-)
+# Initialize OpenAI client only if API key is available
+_openai_api_key = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+if _openai_api_key:
+    client = OpenAI(
+        api_key=_openai_api_key,
+        base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL"),
+    )
+else:
+    client = None  # OpenAI not configured - will use Gemini or system analysis
 
 SYSTEM_PROMPT = """✅ MASTER RISK-FIRST CHART AUDIT PROMPT — v7.1 (LOGIC-STRICT EDITION)
 DEGREE-LOCKED • STRUCTURE-FIRST • MOMENTUM-CONFIRMED • FIB-CONTEXTUALIZED (Weinstein + Elliott Wave + Awesome Oscillator + Fibonacci — AUDIT ONLY)
@@ -2715,6 +2720,17 @@ def audit_chart_with_ai(chart_base64: str, pivot_text: str, ticker: str, timefra
     - When mtf_charts is provided, sends all 4 timeframes to GPT-4o
     - Enables proper top-down Elliott Wave analysis like Juan's method
     """
+    # Check if OpenAI client is available
+    if client is None:
+        return """⚠️ **AI Chart Analysis Unavailable**
+
+OpenAI API is not configured. To enable AI chart analysis:
+
+1. Add `OPENAI_API_KEY` to your Streamlit secrets
+2. Or use the Trading Journal's AI Assessment (uses Google Gemini)
+
+The rest of the chart analysis features work without AI."""
+
     import uuid
     from datetime import datetime
     
