@@ -9893,7 +9893,7 @@ with col1:
                     file_name=report_file,
                     mime="text/plain"
                 )
-"Fix: Add sys.path for utils module and update deprecated UI params"
+
 
 def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, timeframe: str, sma_context: str, analysis_id: str, mtf_charts: dict = None) -> str:
     """
@@ -9942,7 +9942,7 @@ def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, tim
             content_parts.append(get_image_part(chart_base64))
             
         content_parts.append(f"Pivot Data:\n{pivot_text}")
-        content_parts.append(\"""
+        content_parts.append("""
         OUTPUT FORMAT (HTML):
         Provide a clean, structured analysis.
         Start with <div class="gemini-analysis">
@@ -9955,7 +9955,7 @@ def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, tim
         2. Wave Count & Structure
         3. Risk/Reward
         4. Verdict (PASS/FAIL)
-        \""")
+        """)
         
         response = model.generate_content(
             content_parts,
@@ -9966,7 +9966,7 @@ def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, tim
         )
         
         # Style the output
-        result_html = f\"""
+        result_html = f"""
         <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 25px; color: #E6EDF3; font-family: 'Inter', sans-serif;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #30363D; padding-bottom: 15px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -9980,11 +9980,11 @@ def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, tim
                 {response.text.replace('', '')}
             </div>
             
-            <div style="margin-top: 25px; pt-3; border-top: 1px solid #21262D; font-size: 0.8em; color: #8B949E; text-align: right;">
+            <div style="margin-top: 25px; padding-top: 12px; border-top: 1px solid #21262D; font-size: 0.8em; color: #8B949E; text-align: right;">
                 ID: {analysis_id.split('_')[-1]}
             </div>
         </div>
-        \"""
+        """
         return result_html
 
     except Exception as e:
