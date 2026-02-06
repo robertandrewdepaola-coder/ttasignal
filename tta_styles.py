@@ -153,6 +153,40 @@ TTA_CUSTOM_CSS = """
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     
+    /* ═══════════════════════════════════════════════════════════════════════
+       NUCLEAR OPTION - Force button colors with maximum specificity
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    /* Target ALL buttons in Streamlit using data-testid */
+    [data-testid="stFormSubmitButton"] > button,
+    [data-testid="baseButton-primary"],
+    button[data-testid="baseButton-primary"],
+    div[data-testid="stFormSubmitButton"] button,
+    .stFormSubmitButton button {
+        background: linear-gradient(135deg, #238636 0%, #2EA043 100%) !important;
+        background-color: #238636 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-color: transparent !important;
+    }
+    
+    /* Coral/Red buttons - override to green */
+    button[style*="background-color: rgb(255, 75, 75)"],
+    button[style*="background-color: rgb(255,75,75)"],
+    button[style*="#FF4B4B"],
+    button[style*="ff4b4b"] {
+        background: linear-gradient(135deg, #238636 0%, #2EA043 100%) !important;
+        background-color: #238636 !important;
+    }
+    
+    /* Super specific targeting for form submit */
+    .stForm [data-testid="stFormSubmitButton"] button[kind="primary"],
+    .stForm button[kind="primary"],
+    div.stForm button {
+        background: linear-gradient(135deg, #238636 0%, #2EA043 100%) !important;
+        color: white !important;
+    }
+    
     /* Root variables - for our custom components */
     :root {
         --bg-primary: #0D1117;
