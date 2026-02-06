@@ -252,75 +252,76 @@ def render_trading_journal_tab():
 @safe_render
 def render_watchlist_tab(journal):
     """Render the watchlist management tab with QUALITY SCORING"""
-    st.subheader("Watchlist - Potential Setups")
     
-    # Add to watchlist form
-    with st.form("add_watchlist"):
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            new_ticker = st.text_input("Ticker", placeholder="GOOGL")
-        with col2:
-            setup_type = st.text_input("Setup Type", placeholder="W3, W5, Break-Retest, etc.")
+    # ── 1. DASHBOARD & MANAGEMENT ──────────────────────────────────────────────
+    
+    # Collapsible management section to reduce clutter
+    with st.expander("📝 Manage Watchlist (Add / Clear)", expanded=False):
+        with st.form("add_watchlist"):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                new_ticker = st.text_input("Ticker", placeholder="GOOGL")
+            with col2:
+                setup_type = st.text_input("Setup Type", placeholder="W3, W5, Break-Retest, etc.")
+            
+            reason = st.text_area("Reason/Notes", placeholder="Why is this interesting?", height=60)
+            
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                add_btn = st.form_submit_button("➕ Add to Watchlist", type="primary", use_container_width=True)
+            with col_btn2:
+                clear_btn = st.form_submit_button("🗑️ Clear All", use_container_width=True)
+    
+        if add_btn and new_ticker:
+            result = journal.add_to_watchlist(new_ticker, reason, setup_type)
+            st.success(result)
+            st.rerun()
         
-        reason = st.text_area("Reason/Notes", placeholder="Why is this interesting?", height=60)
-        
-        col_btn1, col_btn2 = st.columns([1, 1])
-        with col_btn1:
-            add_btn = st.form_submit_button("➕ Add to Watchlist", type="primary", use_container_width=True)
-        with col_btn2:
-            clear_btn = st.form_submit_button("🗑️ Clear All", use_container_width=True)
+        if clear_btn:
+            result = journal.clear_watchlist()
+            st.success(result)
+            st.rerun()
     
-    if add_btn and new_ticker:
-        result = journal.add_to_watchlist(new_ticker, reason, setup_type)
-        st.success(result)
-        st.rerun()
-    
-    if clear_btn:
-        result = journal.clear_watchlist()
-        st.success(result)
-        st.rerun()
-    
-    # Display watchlist
+    # Display watchlist summary
     watchlist_df = journal.get_watchlist()
     
     if watchlist_df.empty:
-        st.info("📝 Watchlist is empty. Add potential trades above.")
-    else:
-        st.markdown("---")
+        st.info("📝 Watchlist is empty. Add tickers above to get started.")
+        return
+
+    st.markdown("---")
+    
+    # ── 2. UNIFIED SCANNER CONTROL PANEL ───────────────────────────────────────
+    st.subheader("📡 Signal Scanner")
+    
+    # Unified Control Row
+    c1, c2, c3 = st.columns([1, 1, 2])
+    
+    with c1:
+        scan_mode = st.selectbox(
+            "Scan Mode", 
+            options=["Full Scan (Recommended)", "Quick Scan (Entry Only)", "Late Entry Window"],
+            index=0,
+            label_visibility="collapsed"
+        )
         
-        # ═══════════════════════════════════════════════════════════════════════
-        # ENHANCED SCANNER - Entry Signals + Quality Scoring + Late Entry
-        # ═══════════════════════════════════════════════════════════════════════
-        st.subheader("📡 Entry Signal Scanner")
+    with c2:
+        min_grade = st.selectbox(
+            "Min Grade", 
+            options=['Any', 'C+', 'B+', 'A'], 
+            index=0, 
+            label_visibility="collapsed"
+        )
         
-        st.markdown("""
-        **Scan Modes:**
-        - 🔍 **Full Scan** - Entry signal + Quality backtest + Weekly status
-        - ⚡ **Quick Scan** - Entry signal check only (faster)
-        - 🕐 **Late Entry** - Find recent signals still within entry window
-        """)
-        
-        # Min Grade filter on its own line for cleaner layout
-        col_grade, col_spacer = st.columns([1, 3])
-        with col_grade:
-            min_grade = st.selectbox("Min Grade Filter", options=['Any', 'C+', 'B+', 'A'], index=0, label_visibility="visible")
-        
-        # Scan buttons row
-        col_scan1, col_scan2, col_scan3 = st.columns([2, 1, 1])
-        with col_scan1:
-            if st.button("🔍 Full Scan", type="primary", use_container_width=True):
+    with c3:
+        if st.button("🚀 RUN SCAN", type="primary", use_container_width=True):
+            if "Full" in scan_mode:
                 st.session_state['run_full_scan'] = True
-                st.rerun()
-        
-        with col_scan2:
-            if st.button("⚡ Quick Scan", use_container_width=True):
+            elif "Quick" in scan_mode:
                 st.session_state['run_quick_scan'] = True
-                st.rerun()
-        
-        with col_scan3:
-            if st.button("🕐 Late Entry", use_container_width=True):
+            elif "Late" in scan_mode:
                 st.session_state['run_late_entry_scan'] = True
-                st.rerun()
+            st.rerun()
         
         # ═══════════════════════════════════════════════════════════════════════
         # LATE ENTRY SCAN - Find recent crossovers still valid
@@ -757,7 +758,7 @@ def render_watchlist_tab(journal):
             
             # Low quality skipped tickers
             if len(low_quality_skip) > 0:
-                with st.expander(f"🔴 Skipped ({len(low_quality_skip)} tickers) - No signal + Lower quality"):
+                with st.expander(f"Skipped ({len(low_quality_skip)} tickers) - Low Quality / No Signal"):
                     display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'MACD✓', 'AO>0', 'AO Cross', 'Mkt OK']
                     st.dataframe(low_quality_skip[display_cols], use_container_width=True, hide_index=True)
             
@@ -778,10 +779,16 @@ def render_watchlist_tab(journal):
                 key="detail_ticker_select"
             )
             
-            if st.button(f"📊 Analyze {selected_ticker}", type="primary", use_container_width=False):
-                with st.spinner(f"Analyzing {selected_ticker}..."):
-                    analysis = analyze_ticker_full(selected_ticker)
-                    st.session_state[f'analysis_{selected_ticker}'] = analysis
+            # AUTO-ANALYZE selected ticker (No button needed)
+            if selected_ticker:
+                analysis_key = f'analysis_{selected_ticker}'
+                
+                # Check if we need to run analysis
+                # We run it if it's not in state OR if we want to ensure freshness
+                if analysis_key not in st.session_state:
+                    with st.spinner(f"Analyzing {selected_ticker}..."):
+                        analysis = analyze_ticker_full(selected_ticker)
+                        st.session_state[analysis_key] = analysis
             
             # Display analysis if available
             analysis_key = f'analysis_{selected_ticker}'
@@ -995,7 +1002,7 @@ def render_watchlist_tab(journal):
                                 gemini_api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
                                 if gemini_api_key:
                                     genai.configure(api_key=gemini_api_key)
-                                    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                                    gemini_model = genai.GenerativeModel('gemini-flash-latest')
                             except Exception as e:
                                 pass  # Gemini not available, will try OpenAI
                             
@@ -1055,6 +1062,18 @@ def render_watchlist_tab(journal):
                 else:
                     st.info("🤖 AI Assessment not available.")
         
+        # Action Buttons
+        st.markdown("### Decision")
+        c_trade, c_remove = st.columns([2, 1])
+        with c_trade:
+            if st.button(f"✅ Trade {selected_ticker}", type="primary", use_container_width=True, key=f"trade_btn_{selected_ticker}"):
+                st.session_state['prefill_ticker'] = selected_ticker
+                st.success(f"Selected {selected_ticker}! Go to 'Open Positions' tab to execute.")
+        with c_remove:
+            if st.button(f"🗑️ Remove", use_container_width=True, key=f"del_btn_{selected_ticker}"):
+                journal.remove_from_watchlist(selected_ticker)
+                st.rerun()
+
         st.markdown("---")
         
         # Display watchlist table
@@ -1095,15 +1114,27 @@ def render_positions_tab(journal):
     # Get watchlist tickers for dropdown
     watchlist_tickers = journal.get_watchlist()['Ticker'].tolist() if not journal.get_watchlist().empty else []
     
+    # Handle pre-filled ticker from Watchlist tab
+    prefill = st.session_state.get('prefill_ticker', '')
+    
     # Ticker selection OUTSIDE form so it can trigger auto-fill
     st.markdown("**Select or Enter Ticker:**")
     col_ticker1, col_ticker2 = st.columns([1, 1])
     
     with col_ticker1:
         if watchlist_tickers:
+            # Determine default index based on prekill
+            idx = 0
+            if prefill and prefill in watchlist_tickers:
+                try:
+                    idx = watchlist_tickers.index(prefill) + 1 # +1 for empty option
+                except:
+                    pass
+            
             selected_from_list = st.selectbox(
                 "From Watchlist", 
                 options=[""] + watchlist_tickers,
+                index=idx,
                 key="ticker_select",
                 label_visibility="collapsed"
             )

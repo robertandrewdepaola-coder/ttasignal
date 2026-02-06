@@ -2704,7 +2704,45 @@ def capture_chart_as_base64(fig) -> str:
     return base64.b64encode(img_bytes).decode('utf-8')
 
 
+
 def audit_chart_with_ai(chart_base64: str, pivot_text: str, ticker: str, timeframe: str, sma_info: dict = None, current_price: float = None, highest_price: float = None, lowest_price: float = None, mtf_charts: dict = None) -> str:
+    """
+    Perform AI Chart Analysis using Google Gemini 1.5 Flash (Vision).
+    Replaces legacy OpenAI implementation.
+    """
+    import uuid
+    from datetime import datetime
+    
+    # Generate unique analysis ID
+    analysis_id = f"{ticker}_{timeframe}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    
+    # Prepare SMA Context
+    sma_context = ""
+    if sma_info and sma_info.get('value') is not None:
+        sma_value = sma_info['value']
+        sma_slope = sma_info.get('slope', 'UNKNOWN')
+        sma_context = f"IMPORTANT - 30-WEEK SMA DATA (VISIBLE ON CHART):\\n- Current 30-Week SMA Value: ${sma_value:.2f}\\n- SMA Slope: {sma_slope}\\n- Current Price: ${current_price:.2f}\\n- Price vs SMA: {'ABOVE' if current_price > sma_value else 'BELOW'} the 30-Week SMA"
+    else:
+        sma_context = "30-WEEK SMA DATA: Not available for this analysis."
+
+    # Use the separated Gemini Auditor module
+    try:
+        from gemini_auditor import audit_chart_with_gemini_vision
+        
+        return audit_chart_with_gemini_vision(
+            chart_base64=chart_base64,
+            pivot_text=pivot_text,
+            ticker=ticker,
+            timeframe=timeframe,
+            sma_context=sma_context,
+            analysis_id=analysis_id,
+            system_prompt=SYSTEM_PROMPT,
+            mtf_charts=mtf_charts
+        )
+    except Exception as e:
+        return f"⚠️ Error initializing Gemini: {str(e)}"
+
+def _legacy_audit_chart_with_openai(chart_base64: str, pivot_text: str, ticker: str, timeframe: str, sma_info: dict = None, current_price: float = None, highest_price: float = None, lowest_price: float = None, mtf_charts: dict = None) -> str:
     """
     Two-step AI pipeline for chart analysis with Multi-Timeframe support:
     Step 1: Generate initial analysis using Master Prompt (with all 4 timeframes if available)
@@ -9517,9 +9555,15 @@ if st.session_state.df is not None and st.session_state.fig is not None:
             
             # Render output based on selected format
             with st.expander("📊 Elliott Wave Analysis (AI Audit)", expanded=True):
-                if st.session_state.show_dashboard and level_A is not None and level_B is not None:
+                # NEW: Direct HTML Rendering for Gemini
+                if ai_analysis and ai_analysis.strip().startswith("<div"):
+                    st.markdown(ai_analysis, unsafe_allow_html=True)
+                    st.session_state.dashboard_data = None # Clear legacy data to prevent stale PDF export logic
+                
+                # FALLBACK: Legacy Dashboard Parser (for text-based AI output)
+                elif st.session_state.show_dashboard and level_A is not None and level_B is not None:
                     try:
-                                                # v16.17 MTF FIX - Collect traffic light data
+                        # v16.17 MTF FIX - Collect traffic light data
                         mtf_data = {
                             'monthly': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('monthly_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('monthly_dotcolor', '6b7280')},
                             'weekly': {'ao': st.session_state.get('tta_stats', {}).get('base', {}).get('weekly_ao', 0), 'dotcolor': st.session_state.get('traffic_lights', {}).get('weekly_dotcolor', '6b7280')},
@@ -9850,3 +9894,98 @@ with col1:
                     mime="text/plain"
                 )
 "Fix: Add sys.path for utils module and update deprecated UI params"
+
+def audit_chart_with_gemini(chart_base64: str, pivot_text: str, ticker: str, timeframe: str, sma_context: str, analysis_id: str, mtf_charts: dict = None) -> str:
+    """
+    Perform Chart Audit using Google Gemini 1.5 Flash (Vision).
+    Outputs HTML directly with Mometic-style design.
+    """
+    import os
+    import google.generativeai as genai
+    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    if not api_key:
+        return """<div style='background:#3d1418; padding:15px; border-radius:8px; border:1px solid #f85149; color:#f85149'>
+        ⚠️ <b>Google AI Not Configured</b><br>
+        Please add <code>GOOGLE_API_KEY</code> to Streamlit secrets.
+        </div>"""
+        
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        content_parts = []
+        
+        # Helper for images
+        def get_image_part(b64):
+            return {'mime_type': 'image/png', 'data': b64}
+
+        # SYSTEM PROMPT
+        content_parts.append(SYSTEM_PROMPT + "\n\nSTRICT RULE: Focus on RISK assessment first. Be critical.")
+        
+        if mtf_charts and all(k in mtf_charts for k in ['monthly', 'weekly', 'daily', 'h4']):
+            # MTF Mode
+            content_parts.append(f"=== TOP-DOWN ANALYSIS FOR {ticker} ===\n{sma_context}\nAnalyze 4 charts (Monthly->Weekly->Daily->4H).")
+            content_parts.append("MONTHLY (Primary):")
+            content_parts.append(get_image_part(mtf_charts['monthly']))
+            content_parts.append("WEEKLY (Intermediate):")
+            content_parts.append(get_image_part(mtf_charts['weekly']))
+            content_parts.append("DAILY (Minor):")
+            content_parts.append(get_image_part(mtf_charts['daily']))
+            content_parts.append("4-HOUR (Minuette):")
+            content_parts.append(get_image_part(mtf_charts['h4']))
+        else:
+            # Single Chart Mode
+            content_parts.append(f"=== ANALYSIS FOR {ticker} ({timeframe}) ===\n{sma_context}")
+            content_parts.append(get_image_part(chart_base64))
+            
+        content_parts.append(f"Pivot Data:\n{pivot_text}")
+        content_parts.append(\"""
+        OUTPUT FORMAT (HTML):
+        Provide a clean, structured analysis.
+        Start with <div class="gemini-analysis">
+        Use <h3> for headers.
+        Use <ul> for lists.
+        End with </div>
+        
+        Sections:
+        1. Executive Summary
+        2. Wave Count & Structure
+        3. Risk/Reward
+        4. Verdict (PASS/FAIL)
+        \""")
+        
+        response = model.generate_content(
+            content_parts,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.2,
+                max_output_tokens=2000,
+            )
+        )
+        
+        # Style the output
+        result_html = f\"""
+        <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 8px; padding: 25px; color: #E6EDF3; font-family: 'Inter', sans-serif;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #30363D; padding-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.5em;">⚡</span>
+                    <h3 style="margin: 0; color: #58A6FF; font-weight: 600;">AI Chart Audit</h3>
+                </div>
+                <span style="background-color: #1F6FEB; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em;">Gemini 1.5 Flash</span>
+            </div>
+            
+            <div style="font-size: 1.05em; line-height: 1.6; color: #C9D1D9;">
+                {response.text.replace('', '')}
+            </div>
+            
+            <div style="margin-top: 25px; pt-3; border-top: 1px solid #21262D; font-size: 0.8em; color: #8B949E; text-align: right;">
+                ID: {analysis_id.split('_')[-1]}
+            </div>
+        </div>
+        \"""
+        return result_html
+
+    except Exception as e:
+        return f"<div style='color:red'>AI Error: {str(e)}</div>"
