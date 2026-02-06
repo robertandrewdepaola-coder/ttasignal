@@ -731,7 +731,7 @@ def render_watchlist_tab(journal):
             
             # Quality tickers waiting for signal (NEW SECTION)
             if len(quality_waiting) > 0:
-                with st.expander(f"⏳ Quality Watchlist ({len(quality_waiting)} tickers) - Grade A/B waiting for signal"):
+                with st.expander(f"Quality Watchlist - {len(quality_waiting)} tickers waiting for signal"):
                     st.markdown("""
                     **These are HIGH QUALITY tickers** based on backtested performance, 
                     but they don't have a valid entry signal right now. Keep them on your watchlist!

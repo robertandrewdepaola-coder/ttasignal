@@ -1535,11 +1535,21 @@ Format your response with clear headers."""
             result['confidence'] = 'LOW'
             
     except Exception as e:
-        result['error'] = str(e)
+        error_str = str(e)
+        # Handle specific errors with user-friendly messages
+        if '429' in error_str:
+            result['note'] = 'Rate limit reached - try again in a minute'
+        elif '401' in error_str or 'authentication' in error_str.lower():
+            result['note'] = 'API key not configured'
+        elif '503' in error_str or 'unavailable' in error_str.lower():
+            result['note'] = 'AI service temporarily unavailable'
+        else:
+            result['note'] = 'Using system analysis (AI unavailable)'
+        
+        result['error'] = error_str[:100]  # Truncate long errors
         result['narrative'] = _generate_fallback_narrative(context)
         result['recommendation'] = context['system_recommendation']
-        result['success'] = True
-        result['note'] = f'AI unavailable, using system analysis: {str(e)[:50]}'
+        result['success'] = True  # Still return valid fallback data
     
     return result
 
