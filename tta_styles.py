@@ -284,8 +284,15 @@ TTA_CUSTOM_CSS = """
     }
     
     [data-testid="stNotificationContentWarning"] p,
+    [data-testid="stNotificationContentWarning"] li,
+    [data-testid="stNotificationContentWarning"] span,
+    [data-testid="stNotificationContentWarning"] strong,
+    [data-testid="stNotificationContentWarning"] div,
     .stAlert[kind="warning"] p,
-    div[data-baseweb="notification"] p {
+    .stAlert[kind="warning"] li,
+    .stAlert[kind="warning"] span,
+    div[data-baseweb="notification"] p,
+    div[data-baseweb="notification"] li {
         color: #664D03 !important;
         font-weight: 500 !important;
     }
@@ -296,7 +303,11 @@ TTA_CUSTOM_CSS = """
         border-left: 4px solid #0D6EFD !important;
     }
     
-    [data-testid="stNotificationContentInfo"] p {
+    [data-testid="stNotificationContentInfo"] p,
+    [data-testid="stNotificationContentInfo"] li,
+    [data-testid="stNotificationContentInfo"] span,
+    [data-testid="stNotificationContentInfo"] strong,
+    [data-testid="stNotificationContentInfo"] div {
         color: #084298 !important;
     }
     
@@ -306,7 +317,11 @@ TTA_CUSTOM_CSS = """
         border-left: 4px solid #198754 !important;
     }
     
-    [data-testid="stNotificationContentSuccess"] p {
+    [data-testid="stNotificationContentSuccess"] p,
+    [data-testid="stNotificationContentSuccess"] li,
+    [data-testid="stNotificationContentSuccess"] span,
+    [data-testid="stNotificationContentSuccess"] strong,
+    [data-testid="stNotificationContentSuccess"] div {
         color: #0F5132 !important;
     }
     
@@ -320,9 +335,73 @@ TTA_CUSTOM_CSS = """
         color: #842029 !important;
     }
     
+    /* ═══════════════════════════════════════════════════════════════════════
+       COMPACT LAYOUT - Reduce vertical spacing throughout
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    /* Reduce gap between all Streamlit blocks */
+    .stMarkdown, .stAlert, .stDataFrame, .stMetric {
+        margin-bottom: 0.25rem !important;
+    }
+    
+    /* Compact alert boxes */
+    [data-testid="stNotificationContentWarning"],
+    [data-testid="stNotificationContentInfo"],
+    [data-testid="stNotificationContentSuccess"],
+    [data-testid="stNotificationContentError"] {
+        padding: 0.5rem 0.75rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Reduce padding inside expanders */
+    [data-testid="stExpander"] details > div {
+        padding-top: 0.25rem !important;
+    }
+    
+    /* Compact dataframe tables */
+    .stDataFrame {
+        margin-top: 0.25rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Tighter section spacing */
+    .stMarkdown h3 {
+        margin-top: 0.75rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    /* Reduce vertical gap between elements in main container */
+    [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+        gap: 0.25rem !important;
+    }
+    
+    /* Compact caption text */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        margin-top: 0 !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
     /* Bullet points and lists */
     .stMarkdown ul li, .stMarkdown ol li {
         color: #E6EDF3 !important;
+    }
+    
+    /* But inside alert boxes, use dark text */
+    [data-testid="stNotificationContentWarning"] ul li,
+    [data-testid="stNotificationContentWarning"] ol li {
+        color: #664D03 !important;
+    }
+    [data-testid="stNotificationContentInfo"] ul li,
+    [data-testid="stNotificationContentInfo"] ol li {
+        color: #084298 !important;
+    }
+    [data-testid="stNotificationContentSuccess"] ul li,
+    [data-testid="stNotificationContentSuccess"] ol li {
+        color: #0F5132 !important;
+    }
+    [data-testid="stNotificationContentError"] ul li,
+    [data-testid="stNotificationContentError"] ol li {
+        color: #842029 !important;
     }
     
     /* Expander headers - clean styling */
