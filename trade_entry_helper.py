@@ -27,21 +27,36 @@ from pathlib import Path
 # =============================================================================
 
 def calculate_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
-    """Calculate MACD indicator - matches backtester"""
+    """
+    Calculate MACD indicator - matches TradingView AO+MACD overlay.
+    
+    IMPORTANT: Uses SMA for signal line (not EMA) to match TradingView Pine Script:
+      signal = sma(macd, signalLength)
+    
+    MACD line = EMA(close, fast) - EMA(close, slow)
+    Signal line = SMA(MACD, signal)  <-- SMA, not EMA!
+    Histogram = MACD - Signal
+    """
     df = df.copy()
     ema_fast = df['Close'].ewm(span=fast, adjust=False).mean()
     ema_slow = df['Close'].ewm(span=slow, adjust=False).mean()
     df['MACD'] = ema_fast - ema_slow
-    df['MACD_Signal'] = df['MACD'].ewm(span=signal, adjust=False).mean()
+    # SMA for signal line to match TradingView
+    df['MACD_Signal'] = df['MACD'].rolling(window=signal).mean()
     df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
     return df
 
 
 def calculate_ao(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate Awesome Oscillator - matches backtester"""
+    """
+    Calculate Awesome Oscillator - matches TradingView AO+MACD overlay.
+    
+    TradingView script: ao = (sma(hl2,5) - sma(hl2,34)) / 2
+    Note: /2 doesn't change zero-cross detection but matches TV values.
+    """
     df = df.copy()
     median_price = (df['High'] + df['Low']) / 2
-    df['AO'] = median_price.rolling(window=5).mean() - median_price.rolling(window=34).mean()
+    df['AO'] = (median_price.rolling(window=5).mean() - median_price.rolling(window=34).mean()) / 2
     return df
 
 
@@ -962,10 +977,24 @@ def validate_entry_conditions(ticker: str, entry_window: int = 20) -> Tuple[bool
         # Also store if MACD is just bullish (above signal) even without fresh cross
         checks['macd_bullish'] = current_macd > current_signal
         
+        # Check MACD histogram trend (is momentum fading?)
+        macd_hist_current = current_macd - current_signal
+        macd_hist_prev = float(hist['MACD'].iloc[i-1]) - float(hist['MACD_Signal'].iloc[i-1])
+        macd_hist_prev2 = float(hist['MACD'].iloc[i-2]) - float(hist['MACD_Signal'].iloc[i-2]) if i > 1 else macd_hist_prev
+        
+        # MACD weakening: histogram shrinking for 2+ bars (converging toward cross)
+        hist_shrinking = (macd_hist_current < macd_hist_prev) and (macd_hist_prev < macd_hist_prev2)
+        # Near crossover: histogram very small relative to MACD value
+        near_cross = abs(macd_hist_current) < abs(current_macd) * 0.1 if current_macd != 0 else False
+        
+        checks['macd_weakening'] = hist_shrinking and checks['macd_bullish']
+        checks['macd_near_cross'] = near_cross
+        checks['macd_hist_value'] = round(float(macd_hist_current), 4)
+        
         # Debug: store actual MACD values for diagnosis
         checks['_debug_macd'] = round(float(current_macd), 4)
         checks['_debug_signal'] = round(float(current_signal), 4)
-        checks['_debug_hist'] = round(float(current_macd - current_signal), 4)
+        checks['_debug_hist'] = round(float(macd_hist_current), 4)
         checks['_debug_date'] = str(hist.index[i].date()) if hasattr(hist.index[i], 'date') else str(hist.index[i])
         checks['_debug_data_bars'] = len(hist)
         
@@ -1092,6 +1121,66 @@ def check_weekly_confirmation(ticker: str) -> Dict[str, Any]:
             result['signal_type'] = "Re-Entry 🔄"
         else:
             result['signal_type'] = "New Wave 🌊"
+        
+        return result
+        
+    except Exception as e:
+        result['error'] = str(e)
+        return result
+
+
+def check_monthly_confirmation(ticker: str) -> Dict[str, Any]:
+    """
+    Check Monthly MACD and AO status for top-down trend confirmation.
+    
+    Monthly bearish = strong headwind for daily signals.
+    Monthly bullish = confirms broader trend supports entry.
+    """
+    result = {
+        'monthly_bullish': False,
+        'monthly_macd': None,
+        'monthly_signal': None,
+        'monthly_ao': None,
+        'monthly_ao_positive': False,
+        'signal_type': None,
+        'error': None
+    }
+    
+    try:
+        stock = yf.Ticker(ticker)
+        monthly = stock.history(period='5y', interval='1mo')
+        
+        if monthly.empty or len(monthly) < 30:
+            result['error'] = "Insufficient monthly data"
+            return result
+        
+        if isinstance(monthly.columns, pd.MultiIndex):
+            monthly.columns = monthly.columns.get_level_values(0)
+        
+        monthly = calculate_macd(monthly)
+        monthly = calculate_ao(monthly)
+        
+        monthly_macd = float(monthly['MACD'].iloc[-1])
+        monthly_signal = float(monthly['MACD_Signal'].iloc[-1])
+        monthly_ao = float(monthly['AO'].iloc[-1])
+        
+        result['monthly_macd'] = round(monthly_macd, 4)
+        result['monthly_signal'] = round(monthly_signal, 4)
+        result['monthly_ao'] = round(monthly_ao, 2)
+        result['monthly_bullish'] = monthly_macd > monthly_signal
+        result['monthly_ao_positive'] = monthly_ao > 0
+        
+        # Check for recent bearish cross
+        if len(monthly) >= 2:
+            prev_macd = float(monthly['MACD'].iloc[-2])
+            prev_signal = float(monthly['MACD_Signal'].iloc[-2])
+            result['monthly_cross_down'] = (monthly_macd < monthly_signal) and (prev_macd >= prev_signal)
+            result['monthly_cross_up'] = (monthly_macd > monthly_signal) and (prev_macd <= prev_signal)
+        
+        if result['monthly_bullish']:
+            result['signal_type'] = "Bullish"
+        else:
+            result['signal_type'] = "Bearish"
         
         return result
         
@@ -1352,6 +1441,9 @@ def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
     
     # Check weekly confirmation
     result['weekly_status'] = check_weekly_confirmation(ticker)
+    
+    # Check monthly confirmation (top-down)
+    result['monthly_status'] = check_monthly_confirmation(ticker)
     
     # Calculate quality score
     result['quality'] = calculate_quality_score(ticker)
