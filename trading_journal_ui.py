@@ -549,7 +549,12 @@ def render_watchlist_tab(journal):
                         '_grade': grade,
                         '_score': score,
                         '_ao_confirm': ao_confirm_data,
-                        '_reentry': reentry_data
+                        '_reentry': reentry_data,
+                        '_debug_macd': checks.get('_debug_macd', ''),
+                        '_debug_signal': checks.get('_debug_signal', ''),
+                        '_debug_hist': checks.get('_debug_hist', ''),
+                        '_debug_date': checks.get('_debug_date', ''),
+                        '_debug_bars': checks.get('_debug_data_bars', '')
                     })
                     
                 except Exception as e:
@@ -822,6 +827,16 @@ def render_watchlist_tab(journal):
                 if st.checkbox(f"▸ Skipped ({len(low_quality_skip)} tickers) - Low Quality / No Signal", value=False, key="toggle_skip"):
                     display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'MACD✓', 'AO>0', 'AO Cross', 'Mkt OK']
                     st.dataframe(low_quality_skip[display_cols], use_container_width=True, hide_index=True)
+            
+            # Debug: Show raw MACD values for verification
+            if st.checkbox("▸ Debug: Raw MACD Values (compare with TradingView)", value=False, key="toggle_macd_debug"):
+                debug_cols = ['Ticker', 'MACD✓', '_debug_macd', '_debug_signal', '_debug_hist', '_debug_date', '_debug_bars']
+                available_cols = [c for c in debug_cols if c in df.columns]
+                if available_cols:
+                    debug_df = df[available_cols].copy()
+                    debug_df.columns = [c.replace('_debug_', '') for c in available_cols]
+                    st.dataframe(debug_df, use_container_width=True, hide_index=True)
+                    st.caption("MACD = MACD line value, signal = Signal line value, hist = MACD - Signal (positive = bullish), date = last bar date, bars = total data bars used")
             
             # ═══════════════════════════════════════════════════════════════════
             # DETAILED TICKER ANALYSIS - Clean Professional Layout
