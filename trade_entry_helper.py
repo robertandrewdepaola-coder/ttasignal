@@ -959,6 +959,13 @@ def validate_entry_conditions(ticker: str, entry_window: int = 20) -> Tuple[bool
         # Also store if MACD is just bullish (above signal) even without fresh cross
         checks['macd_bullish'] = current_macd > current_signal
         
+        # Debug: store actual MACD values for diagnosis
+        checks['_debug_macd'] = round(float(current_macd), 4)
+        checks['_debug_signal'] = round(float(current_signal), 4)
+        checks['_debug_hist'] = round(float(current_macd - current_signal), 4)
+        checks['_debug_date'] = str(hist.index[i].date()) if hasattr(hist.index[i], 'date') else str(hist.index[i])
+        checks['_debug_data_bars'] = len(hist)
+        
         # =================================================================
         # CHECK 2: AO > 0 on CURRENT bar
         # =================================================================
