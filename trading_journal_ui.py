@@ -140,7 +140,7 @@ def safe_render(func):
             return func(*args, **kwargs)
         except Exception as e:
             st.error(f"Error: {str(e)}")
-            with st.expander("Debug Info"):
+            if st.checkbox("Show Debug Info", value=False, key=f"debug_{id(e)}"):
                 st.code(traceback.format_exc())
             return None
     return wrapper
@@ -442,7 +442,7 @@ def render_watchlist_tab(journal):
                 st.info("No tickers with valid late entry window. All signals either expired or no recent crossover.")
             
             if len(no_signal) > 0:
-                with st.expander(f"No Recent Signal ({len(no_signal)} tickers)"):
+                if st.checkbox(f"▸ No Recent Signal ({len(no_signal)} tickers)", value=False, key="toggle_nosignal"):
                     display_cols = ['Ticker', 'Entry Window', 'Recommendation']
                     st.dataframe(no_signal[display_cols], use_container_width=True, hide_index=True)
             
@@ -721,7 +721,7 @@ def render_watchlist_tab(journal):
                 for _, row in ao_confirm.iterrows():
                     ao_data = row.get('_ao_confirm', {})
                     if ao_data:
-                        with st.expander(f"{row['Ticker']} - AO Confirm Details", expanded=False):
+                        if st.checkbox(f"▸ {row['Ticker']} - AO Confirm Details", value=False, key=f"ao_detail_{row['Ticker']}"):
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.markdown(f"""
@@ -783,14 +783,16 @@ def render_watchlist_tab(journal):
             
             # Watch tickers
             if len(watch) > 0:
-                with st.expander(f"Watch List ({len(watch)} tickers) - Signal forming"):
+                st.markdown(f"---")
+                if st.checkbox(f"▸ Watch List ({len(watch)} tickers) - Signal forming", value=False, key="toggle_watch"):
                     display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0', 'AO Cross']
                     st.dataframe(watch[display_cols], use_container_width=True, hide_index=True)
                     st.caption("These are close to triggering - MACD is bullish but no fresh cross today")
             
             # Quality tickers waiting for signal (NEW SECTION)
             if len(quality_waiting) > 0:
-                with st.expander(f"Quality Watchlist - {len(quality_waiting)} tickers waiting for signal"):
+                st.markdown(f"---")
+                if st.checkbox(f"▸ Quality Watchlist - {len(quality_waiting)} tickers waiting for signal", value=False, key="toggle_quality"):
                     st.markdown("""
                     **These are HIGH QUALITY tickers** based on backtested performance, 
                     but they don't have a valid entry signal right now. Keep them on your watchlist!
@@ -816,7 +818,8 @@ def render_watchlist_tab(journal):
             
             # Low quality skipped tickers
             if len(low_quality_skip) > 0:
-                with st.expander(f"Skipped ({len(low_quality_skip)} tickers) - Low Quality / No Signal"):
+                st.markdown(f"---")
+                if st.checkbox(f"▸ Skipped ({len(low_quality_skip)} tickers) - Low Quality / No Signal", value=False, key="toggle_skip"):
                     display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'MACD✓', 'AO>0', 'AO Cross', 'Mkt OK']
                     st.dataframe(low_quality_skip[display_cols], use_container_width=True, hide_index=True)
             
@@ -1104,8 +1107,8 @@ def render_watchlist_tab(journal):
                                     provider_note
                                 ), unsafe_allow_html=True)
                             else:
-                                with st.expander(f"AI Assessment: {ai_rec}", expanded=True):
-                                    st.markdown(format_ai_narrative_for_display(ai_result))
+                                st.markdown(f"**AI Assessment: {ai_rec}**")
+                                st.markdown(format_ai_narrative_for_display(ai_result))
                         
                             if ai_result.get('note'):
                                 st.caption(f"*{ai_result['note']}*")
@@ -1254,7 +1257,7 @@ def render_positions_tab(journal):
             st.warning(validation_msg)
     
     # Show exit strategy reminder
-    with st.expander("TTA Exit Strategy Reminder"):
+    if st.checkbox("▸ TTA Exit Strategy Reminder", value=False, key="toggle_exit_strategy"):
         st.markdown(get_exit_strategy_note())
     
     st.markdown("---")
