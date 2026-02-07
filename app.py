@@ -677,12 +677,13 @@ def calculate_sma(df: pd.DataFrame, period: int) -> pd.Series:
 
 
 def calculate_awesome_oscillator(df: pd.DataFrame, fast_period: int = 5, slow_period: int = 34) -> pd.Series:
-    """Calculate Awesome Oscillator (AO) using midpoint price."""
+    """Calculate Awesome Oscillator (AO) using midpoint price.
+    Divides by 2 to match TradingView AO+MACD script: ao = (sma(hl2,5) - sma(hl2,34)) / 2"""
     # Handle both 'High'/'Low' and 'high'/'low' column names
     high_col = 'High' if 'High' in df.columns else 'high'
     low_col = 'Low' if 'Low' in df.columns else 'low'
     midpoint = (df[high_col] + df[low_col]) / 2
-    ao = midpoint.rolling(window=fast_period).mean() - midpoint.rolling(window=slow_period).mean()
+    ao = (midpoint.rolling(window=fast_period).mean() - midpoint.rolling(window=slow_period).mean()) / 2
     return ao
 
 
@@ -865,11 +866,12 @@ def generate_trading_checklist(ticker: str, verdict_data: dict, decision: str) -
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def calculate_macd(close_prices, fast=12, slow=26, signal=9):
-    """Calculate MACD line, Signal line, and Histogram"""
+    """Calculate MACD line, Signal line, and Histogram.
+    Uses SMA for signal line to match TradingView AO+MACD indicator."""
     ema_fast = close_prices.ewm(span=fast, adjust=False).mean()
     ema_slow = close_prices.ewm(span=slow, adjust=False).mean()
     macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    signal_line = macd_line.rolling(window=signal).mean()  # SMA, not EMA - matches TradingView
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
 
@@ -1613,7 +1615,7 @@ def calculate_macd_with_crossovers(df: pd.DataFrame, fast: int = 12, slow: int =
     ema_fast = df[close_col].ewm(span=fast, adjust=False).mean()
     ema_slow = df[close_col].ewm(span=slow, adjust=False).mean()
     macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    signal_line = macd_line.rolling(window=signal).mean()  # SMA, not EMA - matches TradingView
     histogram = macd_line - signal_line
     
     crossovers = []
