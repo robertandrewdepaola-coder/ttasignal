@@ -1,5 +1,8 @@
 """
-Enhanced Trade Entry Module for TTA Strategy
+Enhanced Trade Entry Module for TTA Strategy v2.1 (2026-02-07)
+CHANGE LOG: All daily data fetches use period='1y' for MACD accuracy.
+Debug MACD values added to checks dict.
+
 Auto-fills entry price, calculates stops, validates strategy rules,
 and provides quality scoring based on historical backtest performance.
 
