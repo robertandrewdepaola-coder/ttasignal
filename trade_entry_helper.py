@@ -1451,16 +1451,21 @@ def analyze_ticker_full(ticker: str) -> Dict[str, Any]:
     # Generate recommendation
     quality_grade = result['quality'].get('quality_grade', 'N/A')
     weekly_bullish = result['weekly_status'].get('weekly_bullish', False)
+    monthly_bullish = result['monthly_status'].get('monthly_bullish', True)  # Default True if unavailable
+    monthly_warning = " ⚠️ Monthly bearish headwind!" if not monthly_bullish else ""
     
     if is_valid:
         # PRIMARY SIGNAL - backtester criteria met
         result['signal_type'] = 'PRIMARY'
-        if quality_grade in ['A', 'B'] and weekly_bullish:
+        if quality_grade in ['A', 'B'] and weekly_bullish and monthly_bullish:
             result['recommendation'] = 'STRONG BUY'
-            result['summary'] = f"✅ Entry signal valid, Weekly bullish, Quality {quality_grade}"
+            result['summary'] = f"✅ Entry signal valid, Weekly + Monthly bullish, Quality {quality_grade}"
+        elif quality_grade in ['A', 'B'] and weekly_bullish:
+            result['recommendation'] = 'BUY (CAUTION)'
+            result['summary'] = f"✅ Entry signal valid, Weekly bullish, Quality {quality_grade}{monthly_warning}"
         elif quality_grade in ['A', 'B']:
             result['recommendation'] = 'BUY'
-            result['summary'] = f"✅ Entry signal valid, Quality {quality_grade}, Weekly pending"
+            result['summary'] = f"✅ Entry signal valid, Quality {quality_grade}, Weekly pending{monthly_warning}"
         elif quality_grade == 'C':
             result['recommendation'] = 'WAIT'
             result['summary'] = f"⚠️ Entry signal valid but Quality {quality_grade}"
