@@ -51,6 +51,7 @@ try:
         format_quality_score,
         get_exit_strategy_note,
         check_weekly_confirmation,
+        check_monthly_confirmation,
         calculate_quality_score,
         analyze_ticker_full,
         # Late entry functions
@@ -483,6 +484,11 @@ def render_watchlist_tab(journal):
                     weekly_bullish = weekly.get('weekly_bullish', False)
                     signal_type = weekly.get('signal_type', 'N/A')
                     
+                    # Monthly status (top-down)
+                    monthly = analysis.get('monthly_status', {})
+                    monthly_bullish = monthly.get('monthly_bullish', False)
+                    monthly_ao_positive = monthly.get('monthly_ao_positive', False)
+                    
                     # Late entry check
                     late_entry_status = ""
                     if LATE_ENTRY_AVAILABLE and not is_valid:
@@ -540,8 +546,9 @@ def render_watchlist_tab(journal):
                         'Avg Ret': f"{avg_return:+.1f}%",
                         'Signals': signals_found,
                         'Weekly': '🟢' if weekly_bullish else '🔴',
+                        'Monthly': '🟢' if monthly_bullish else '🔴',
                         'Type': signal_type,
-                        'MACD✓': '✅' if checks.get('daily_macd_cross') else ('🟡' if checks.get('macd_bullish') else '❌'),
+                        'MACD✓': '✅' if checks.get('daily_macd_cross') else ('⚠️' if checks.get('macd_weakening') else ('🟡' if checks.get('macd_bullish') else '❌')),
                         'AO>0': '✅' if checks.get('ao_positive') else '❌',
                         'AO Cross': '✅' if checks.get('ao_recent_cross') else '❌',
                         'Mkt OK': '✅' if (checks.get('spy_above_200') and checks.get('vix_below_30')) else '❌',
@@ -568,6 +575,7 @@ def render_watchlist_tab(journal):
                         'Avg Ret': 'N/A',
                         'Signals': 0,
                         'Weekly': '❓',
+                        'Monthly': '❓',
                         'Type': 'N/A',
                         'MACD✓': '❌',
                         'AO>0': '❌',
@@ -618,8 +626,9 @@ def render_watchlist_tab(journal):
                             'Avg Ret': '-',
                             'Signals': '-',
                             'Weekly': '🟢' if weekly.get('weekly_bullish') else '🔴',
+                            'Monthly': '❓',
                             'Type': weekly.get('signal_type', 'N/A'),
-                            'MACD✓': '✅' if checks.get('daily_macd_cross') else ('🟡' if checks.get('macd_bullish') else '❌'),
+                            'MACD✓': '✅' if checks.get('daily_macd_cross') else ('⚠️' if checks.get('macd_weakening') else ('🟡' if checks.get('macd_bullish') else '❌')),
                             'AO>0': '✅' if checks.get('ao_positive') else '❌',
                             'AO Cross': '✅' if checks.get('ao_recent_cross') else '❌',
                             'Mkt OK': '✅' if (checks.get('spy_above_200') and checks.get('vix_below_30')) else '❌',
@@ -638,6 +647,7 @@ def render_watchlist_tab(journal):
                             'Avg Ret': '-',
                             'Signals': '-',
                             'Weekly': '❓',
+                            'Monthly': '❓',
                             'Type': '-',
                             'MACD✓': '❌',
                             'AO>0': '❌',
@@ -703,7 +713,7 @@ def render_watchlist_tab(journal):
             # Ready tickers - with Weekly confirmation warning
             if len(ready) > 0:
                 st.success(f"**🎯 Ready to Trade:** {', '.join(ready['Ticker'].tolist())}")
-                display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Type', 'MACD✓', 'AO>0', 'AO Cross']
+                display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Monthly', 'Type', 'MACD✓', 'AO>0', 'AO Cross']
                 st.dataframe(ready[display_cols], use_container_width=True, hide_index=True)
                 
                 # Weekly confirmation warnings
@@ -721,7 +731,7 @@ def render_watchlist_tab(journal):
             # AO Confirmation tickers (NEW SECTION)
             if len(ao_confirm) > 0:
                 st.info(f"**AO Confirmation Signal:** {', '.join(ao_confirm['Ticker'].tolist())}")
-                display_cols = ['Ticker', 'Status', 'AO Confirm', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
+                display_cols = ['Ticker', 'Status', 'AO Confirm', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Monthly', 'MACD✓', 'AO>0']
                 st.dataframe(ao_confirm[display_cols], use_container_width=True, hide_index=True)
                 
                 st.markdown("""
@@ -759,7 +769,7 @@ def render_watchlist_tab(journal):
             # Re-Entry tickers
             if len(reentry) > 0:
                 st.info(f"**🔁 Re-Entry Signal:** {', '.join(reentry['Ticker'].tolist())}")
-                display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
+                display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Monthly', 'MACD✓', 'AO>0']
                 st.dataframe(reentry[display_cols], use_container_width=True, hide_index=True)
                 
                 st.markdown("""
@@ -785,7 +795,7 @@ def render_watchlist_tab(journal):
             # Late entry tickers - with Weekly warning
             if len(late_ok) > 0:
                 st.info(f"**Late Entry Available:** {', '.join(late_ok['Ticker'].tolist())}")
-                display_cols = ['Ticker', 'Status', 'Late', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0']
+                display_cols = ['Ticker', 'Status', 'Late', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Monthly', 'MACD✓', 'AO>0']
                 st.dataframe(late_ok[display_cols], use_container_width=True, hide_index=True)
                 st.caption("💡 These tickers had a valid signal recently and are still within the entry window")
                 
@@ -798,7 +808,7 @@ def render_watchlist_tab(journal):
             if len(watch) > 0:
                 st.markdown(f"---")
                 if st.checkbox(f"▸ Watch List ({len(watch)} tickers) - Signal forming", value=False, key="toggle_watch"):
-                    display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'MACD✓', 'AO>0', 'AO Cross']
+                    display_cols = ['Ticker', 'Status', 'Grade', 'Win%', 'Avg Ret', 'Weekly', 'Monthly', 'MACD✓', 'AO>0', 'AO Cross']
                     st.dataframe(watch[display_cols], use_container_width=True, hide_index=True)
                     st.caption("These are close to triggering - MACD is bullish but no fresh cross today")
             
@@ -922,7 +932,9 @@ def render_watchlist_tab(journal):
                         macd_cross_label = "MACD Cross Today" if macd_bars_ago == 0 else f"MACD Cross ({macd_bars_ago}d ago)"
                         check_items = [
                             (macd_cross_label, checks.get('daily_macd_cross', False), "Required for PRIMARY signal"),
-                            ("MACD Bullish", checks.get('macd_bullish', False), "MACD > Signal line"),
+                            ("MACD Bullish", checks.get('macd_bullish', False), 
+                             f"MACD > Signal line" + (" ⚠️ WEAKENING" if checks.get('macd_weakening') else "") + 
+                             (f" (hist: {checks.get('macd_hist_value', 0):.4f})" if checks.get('macd_hist_value') is not None else "")),
                             ("AO Positive", checks.get('ao_positive', False), f"Value: {checks.get('ao_value', 0):.2f}"),
                             ("AO Zero Cross", checks.get('ao_recent_cross', False), f"{checks.get('ao_cross_days_ago', 'N/A')} days ago"),
                             ("SPY > 200 SMA", checks.get('spy_above_200', False), "Market filter"),
@@ -1040,6 +1052,37 @@ def render_watchlist_tab(journal):
                         <div>
                             <div style="font-weight: 600; color: {weekly_color};">Weekly MACD: {weekly_label}</div>
                             <div style="font-size: 13px; color: #8B949E;">{signal_type}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # ── MONTHLY TREND ──────────────────────────────────────────────
+                    monthly_detail = analysis.get('monthly_status', {})
+                    m_bullish = monthly_detail.get('monthly_bullish', False)
+                    m_ao = monthly_detail.get('monthly_ao_positive', False)
+                    
+                    if m_bullish:
+                        m_color = "#3FB950"
+                        m_icon = "📈"
+                        m_label = "BULLISH"
+                    else:
+                        m_color = "#F85149"
+                        m_icon = "📉"
+                        m_label = "BEARISH"
+                    
+                    m_ao_str = "AO+" if m_ao else "AO−"
+                    m_warning = ""
+                    if not m_bullish:
+                        m_warning = " — ⚠️ Monthly headwind! Daily signals face higher TF resistance"
+                    
+                    st.markdown(f"""
+                    <div style="display: flex; align-items: center; padding: 16px 20px; margin: 8px 0;
+                                background: linear-gradient(135deg, #161B22, rgba({m_color[1:][:2]}, {m_color[3:5]}, {m_color[5:]}, 0.1));
+                                border: 1px solid {m_color}; border-radius: 8px;">
+                        <span style="font-size: 24px; margin-right: 12px;">{m_icon}</span>
+                        <div>
+                            <div style="font-weight: 600; color: {m_color};">Monthly MACD: {m_label} | {m_ao_str}</div>
+                            <div style="font-size: 13px; color: #8B949E;">Top-down trend context{m_warning}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
