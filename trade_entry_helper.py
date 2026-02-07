@@ -221,7 +221,7 @@ def check_ao_confirmation_signal(ticker: str, macd_lookback: int = 7) -> Dict[st
     
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='3mo', interval='1d')
+        hist = stock.history(period='1y', interval='1d')
         
         if hist.empty or len(hist) < 50:
             result['reason'] = 'Insufficient data'
@@ -441,7 +441,7 @@ def check_reentry_signal(ticker: str) -> Dict[str, Any]:
     
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='6mo', interval='1d')
+        hist = stock.history(period='1y', interval='1d')
         
         if len(hist) < 50:
             result['reason'] = 'Insufficient data'
@@ -561,7 +561,7 @@ def find_recent_crossover(ticker: str, lookback_days: int = 10, entry_window: in
     """
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='6mo', interval='1d')
+        hist = stock.history(period='1y', interval='1d')
         
         if hist.empty or len(hist) < 50:
             return None
@@ -664,7 +664,7 @@ def check_late_entry_conditions(ticker: str, crossover_info: Dict) -> Dict[str, 
     
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='1mo', interval='1d')
+        hist = stock.history(period='1y', interval='1d')
         
         if hist.empty:
             result['reason'] = 'Could not fetch current data'
@@ -902,7 +902,7 @@ def validate_entry_conditions(ticker: str, entry_window: int = 20) -> Tuple[bool
     try:
         # Fetch stock data
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='6mo', interval='1d')
+        hist = stock.history(period='1y', interval='1d')
         
         if len(hist) < 50:
             return False, {"error": "Insufficient data"}
