@@ -657,6 +657,14 @@ def render_watchlist_tab(journal):
             results = st.session_state['scan_results']
             df = pd.DataFrame(results)
             
+            # Version check - confirm which code is running
+            try:
+                import trade_entry_helper as _teh
+                _ver = _teh.__doc__[:60] if _teh.__doc__ else "No docstring"
+                st.caption(f"Engine: {_ver}")
+            except:
+                st.caption("Engine: unknown version")
+            
             # Filter by grade if selected
             if min_grade == 'A':
                 df = df[df['_grade'] == 'A']
