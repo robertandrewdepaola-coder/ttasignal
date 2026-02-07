@@ -588,6 +588,7 @@ def render_watchlist_tab(journal):
             
             progress_bar.empty()
             st.session_state['scan_results'] = all_results
+            st.session_state['_scan_version'] = st.session_state.get('_scan_version', 0) + 1
         
         # ═══════════════════════════════════════════════════════════════════════
         # QUICK SCAN - Entry Only (no backtest)
@@ -659,6 +660,7 @@ def render_watchlist_tab(journal):
                         })
             
             st.session_state['scan_results'] = all_results
+            st.session_state['_scan_version'] = st.session_state.get('_scan_version', 0) + 1
         
         # ═══════════════════════════════════════════════════════════════════════
         # DISPLAY RESULTS
@@ -877,12 +879,15 @@ def render_watchlist_tab(journal):
             if selected_ticker:
                 analysis_key = f'analysis_{selected_ticker}'
                 
-                # Check if we need to run analysis
-                # We run it if it's not in state OR if we want to ensure freshness
-                if analysis_key not in st.session_state:
+                # Re-analyze if not cached, or if scan was just run (cache may be stale)
+                scan_version = st.session_state.get('_scan_version', 0)
+                cached_version = st.session_state.get(f'{analysis_key}_ver', -1)
+                
+                if analysis_key not in st.session_state or cached_version != scan_version:
                     with st.spinner(f"Analyzing {selected_ticker}..."):
                         analysis = analyze_ticker_full(selected_ticker)
                         st.session_state[analysis_key] = analysis
+                        st.session_state[f'{analysis_key}_ver'] = scan_version
             
                 # Display analysis if available
                 if analysis_key in st.session_state:
